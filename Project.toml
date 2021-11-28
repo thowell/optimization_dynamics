@@ -1,0 +1,25 @@
+name = "optimization_based_dynamics"
+uuid = "b76b7f0e-3267-49b4-a6cd-c01948ce091d"
+authors = ["thowell <thowell@stanford.edu>"]
+version = "0.1.0"
+
+[deps]
+Colors = "5ae59095-9a9b-59fe-a467-6f913c188581"
+CoordinateTransformations = "150eb455-5306-5404-9cee-2592286d6298"
+DirectTrajectoryOptimization = "a9f42406-efe7-414c-8b71-df971cc98041"
+GeometryBasics = "5c1252a2-5f33-56bf-86c9-59e7332b4326"
+IterativeLQR = "605048dd-e178-462b-beb9-98a09398ef27"
+JLD2 = "033835bb-8acc-5ee8-8aae-3f567f8a3819"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+MeshCat = "283c5d60-a78f-5afe-a0af-af636b173e11"
+RoboDojo = "2859eb88-988f-4613-a49e-c643bedbc906"
+Rotations = "6038ab10-8711-5258-84ad-4b1120ba62dc"
+Scratch = "6c6a2e73-6563-6170-7368-637461726353"
+Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
+
+[compat]
+MeshCat = "0.14"
+Rotations = "1.0.2 - 1.0.2"
+Scratch = "1.0"
+Symbolics = "0.1.29 - 0.1.29"
+julia = "1.6"
