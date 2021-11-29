@@ -1,7 +1,7 @@
 function _create_planar_push!(vis, model::PlanarPush;
         i = 1,
-        r = 1.0,
-        r_pusher = 0.1,
+        r = 0.1,
+        r_pusher = 0.025,
         tl = 1.0,
         box_color = Colors.RGBA(0.0, 0.0, 0.0, tl),
         pusher_color = Colors.RGBA(0.5, 0.5, 0.5, tl))
@@ -28,8 +28,8 @@ end
 
 function RoboDojo.visualize!(vis, model::PlanarPush, q;
         i = 1,
-        r = 1.0,
-        r_pusher = 0.1,
+        r = 0.1,
+        r_pusher = 0.025,
         tl = 1.0,
         box_color = Colors.RGBA(0.0, 0.0, 0.0, tl),
         pusher_color = Colors.RGBA(0.5, 0.5, 0.5, tl),
@@ -55,8 +55,8 @@ function RoboDojo.visualize!(vis, model::PlanarPush, q;
     end
 
 	settransform!(vis["/Cameras/default"],
-		compose(Translation(0.0, 0.0, 50.0), LinearMap(RotZ(0.5 * pi) * RotY(-pi/2.5))))
-	setprop!(vis["/Cameras/default/rotated/<object>"], "zoom", 50)
+    compose(Translation(0.0, 0.0, 50.0), LinearMap(RotZ(0.5 * pi) * RotY(-pi/2.5))))
+    setprop!(vis["/Cameras/default/rotated/<object>"], "zoom", 50)
 
 
     MeshCat.setanimation!(vis, anim)

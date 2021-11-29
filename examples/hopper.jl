@@ -2,362 +2,255 @@ using Plots
 using Random
 Random.seed!(1)
 
-include_implicit_dynamics()
-include_ddp()
-include(joinpath(pwd(), "examples/implicit_dynamics/models/hopper_2D/model.jl"))
+# ## visualize 
+vis = Visualizer() 
+render(vis)
 
-# Time
+# ## build implicit dynamics
 T = 21
 h = 0.05
 
-# Implicit dynamics
-data = dynamics_data(model, h, T,
-        r_func, rz_func, rθ_func, rz_array, rθ_array;
-        idx_ineq = idx_ineq,
-		z_subset_init = z_subset_init,
-        diff_idx = 4,
-        opts =  InteriorPointOptions{Float64}(
-						r_tol = 1.0e-8,
-						κ_tol = 1.0e-4,
-						κ_init = 1.0,
-						diff_sol = false))
-# implicit model cache
-fdx1 = zeros(4 * model.dim.q, 2 * model.dim.q)
-fdxt = [zeros(model.dim.q, model.dim.q) I zeros(model.dim.q, 2 * model.dim.q);
-        zeros(model.dim.q, 4 * model.dim.q);
-        zeros(2 * model.dim.q, 2 * model.dim.q) I]
-fdu1 = [zeros(model.dim.q, model.dim.u + model.dim.q) I;
-        zeros(model.dim.q, model.dim.u + 2 * model.dim.q);
-        zeros(2 * model.dim.q, model.dim.u) I]
-fdut = [zeros(model.dim.q, model.dim.u);
-        zeros(model.dim.q, model.dim.u);
-        zeros(2 * model.dim.q, model.dim.u)]
+hopper = RoboDojo.hopper
 
-cache = Dict(:fdx1 => fdx1,
-             :fdxt => fdxt,
-             :fdu1 => fdu1,
-             :fdut => fdut)
+im_dyn1 = ImplicitDynamics(hopper, h, 
+	eval(RoboDojo.residual_expr(hopper)), 
+	eval(RoboDojo.jacobian_var_expr(hopper)), 
+	eval(RoboDojo.jacobian_data_expr(hopper)); 
+    r_tol=1.0e-8, κ_eval_tol=1.0e-4, κ_grad_tol=1.0e-3,
+	nn=4 * hopper.nq, n=2 * hopper.nq, m=hopper.nu + 2 * hopper.nq) 
 
-model_implicit = ImplicitDynamics{Midpoint, FixedTime}(2 * model.dim.q, model.dim.u, 0, data, cache = cache)
+im_dynt = ImplicitDynamics(hopper, h, 
+	eval(RoboDojo.residual_expr(hopper)), 
+	eval(RoboDojo.jacobian_var_expr(hopper)), 
+	eval(RoboDojo.jacobian_data_expr(hopper)); 
+    r_tol=1.0e-8, κ_eval_tol=1.0e-4, κ_grad_tol=1.0e-3,
+	nn=4 * hopper.nq, n=4 * hopper.nq, m=hopper.nu) 
 
-# Parameter optimization discrete-time dynamics
-n = [t == 1 ? model_implicit.n : 2 * model_implicit.n for t = 1:T]
-m = [t == 1 ? model_implicit.m + model_implicit.n : model_implicit.m for t = 1:T-1]
+function f1(d, model::ImplicitDynamics, x, u, w)
+	nq = model.eval_sim.model.nq
+	nu = model.eval_sim.model.nu 
 
-function fd(model::ImplicitDynamics{Midpoint, FixedTime}, x, u, w, h, t)
-	np = model.n
-	nq = model.dynamics.m.dim.q
-	nu = model.dynamics.m.dim.u
+	θ = u[nu .+ (1:(2 * nq))]
+	q1 = θ[1:nq]
+	q2 = θ[nq .+ (1:nq)]
+	u1 = u[1:nu] 
 
-	if t == 1
-		θ = view(u, nu .+ (1:np))
-		q0 = view(θ, 1:nq)
-		q1 = view(θ, nq .+ (1:nq))
-	else
-		θ = view(x, 2 * nq .+ (1:np))
-		q0 = view(x, 1:nq)
-		q1 = view(x, nq .+ (1:nq))
-	end
+	v1 = (q2 - q1) ./ model.eval_sim.h
 
-	u1 = view(u, 1:nu)
+	q3 = RoboDojo.step!(model.eval_sim, q2, v1, u1, 1)
 
-	q2 = f(model.dynamics, q0, q1, u1, t)
+	d[1:nq] .= q2 
+	d[nq .+ (1:nq)] .= q3
+	d[2 * nq .+ (1:(2 * nq))] = θ
 
-	return [q1; q2; θ]
+	return d
 end
 
-function fdx(model::ImplicitDynamics{Midpoint, FixedTime}, x, u, w, h, t)
-	np = model.n
-	nq = model.dynamics.m.dim.q
-	nu = model.dynamics.m.dim.u
+function f1x(dx, model::ImplicitDynamics, x, u, w)
+	nq = model.grad_sim.model.nq
+	nu = model.eval_sim.model.nu 
 
-	if t == 1
-		θ = view(u, nu .+ (1:np))
-		q0 = view(θ, 1:nq)
-		q1 = view(θ, nq .+ (1:nq))
-	else
-		θ = view(x, 2 * nq .+ (1:np))
-		q0 = view(x, 1:nq)
-		q1 = view(x, nq .+ (1:nq))
-	end
+	θ = u[nu .+ (1:(2 * nq))]
+	q1 = θ[1:nq]
+	q2 = θ[nq .+ (1:nq)]
+	u1 = u[1:nu] 
 
-	u1 = view(u, 1:nu)
+	v1 = (q2 - q1) ./ model.grad_sim.h
 
-	dq2dx1 = fx1(model.dynamics, q0, q1, u1, t)
+	RoboDojo.step!(model.grad_sim, q2, v1, u1, 1)
 
-	if t == 1
-        return model.cache[:fdx1]
-	else
-        model.cache[:fdxt][nq .+ (1:nq), 1:2nq] = dq2dx1
-        return model.cache[:fdxt]
-	end
+	dx .= [zeros(nq, nq) zeros(nq, nq); zeros(nq, 2 * nq); zeros(2 * nq , 2 * nq)]
+
+	return dx
+end
+	
+function f1u(du, model::ImplicitDynamics, x, u, w)
+	nq = model.grad_sim.model.nq
+	nu = model.eval_sim.model.nu 
+
+	θ = u[nu .+ (1:(2 * nq))]
+	q1 = θ[1:nq]
+	q2 = θ[nq .+ (1:nq)]
+	u1 = u[1:nu] 
+
+	v1 = (q2 - q1) ./ model.grad_sim.h
+
+	RoboDojo.step!(model.grad_sim, q2, v1, u1, 1)
+
+	∂q3∂q1 = model.grad_sim.grad.∂q3∂q1[1]
+	∂q3∂q2 = model.grad_sim.grad.∂q3∂q2[1]
+	∂q3∂u1 = model.grad_sim.grad.∂q3∂u1[1]
+	
+	du .= [zeros(nq, nu) zeros(nq, nq) I; ∂q3∂u1 ∂q3∂q1 ∂q3∂q2; zeros(2 * nq, nu) I]
+
+	return du
 end
 
-function fdu(model::ImplicitDynamics{Midpoint, FixedTime}, x, u, w, h, t)
-	np = model.n
-	nq = model.dynamics.m.dim.q
-	nu = model.dynamics.m.dim.u
+function ft(d, model::ImplicitDynamics, x, u, w)
+	nq = model.eval_sim.model.nq
+	nu = model.eval_sim.model.nu 
 
-	if t == 1
-		θ = view(u, nu .+ (1:np))
-		q0 = view(θ, 1:nq)
-		q1 = view(θ, nq .+ (1:nq))
-	else
-		θ = view(x, 2 * nq .+ (1:np))
-		q0 = view(x, 1:nq)
-		q1 = view(x, nq .+ (1:nq))
-	end
+	θ = x[2 * nq .+ (1:(2 * nq))]
+	q1 = x[1:nq]
+	q2 = x[nq .+ (1:nq)]
+	u1 = u[1:nu] 
 
-	u1 = view(u, 1:nu)
+	v1 = (q2 - q1) ./ model.eval_sim.h
 
-	dq2dx1 = fx1(model.dynamics, q0, q1, u1, t)
-	dq2du1 = fu1(model.dynamics, q0, q1, u1, t)
+	q3 = RoboDojo.step!(model.eval_sim, q2, v1, u1, 1)
 
-	if t == 1
-        model.cache[:fdu1][nq .+ (1:nq), 1:nu] = dq2du1
-        model.cache[:fdu1][nq .+ (1:nq), nu .+ (1:2nq)] = dq2dx1
-        return model.cache[:fdu1]
-	else
-        model.cache[:fdut][nq .+ (1:nq), 1:nu] = dq2du1
-        return model.cache[:fdut]
-	end
+	d[1:nq] .= q2 
+	d[nq .+ (1:nq)] .= q3
+	d[2 * nq .+ (1:(2 * nq))] = θ
+
+	return d
 end
 
-# Initial conditions, controls, disturbances
-q1 = [0.0; 0.5; 0.0; 0.5]
-qM = [0.5; 0.5; 0.0; 0.5]
-qT = [1.0; 0.5; 0.0; 0.5]
-q_ref = [0.5; 0.75; 0.0; 0.25]
+function ftx(dx, model::ImplicitDynamics, x, u, w)
+	nq = model.grad_sim.model.nq
+	nu = model.eval_sim.model.nu 
+
+	θ = x[2 * nq .+ (1:(2 * nq))]
+	q1 = x[1:nq]
+	q2 = x[nq .+ (1:nq)]
+	u1 = u[1:nu] 
+
+	v1 = (q2 - q1) ./ model.grad_sim.h
+
+	RoboDojo.step!(model.grad_sim, q2, v1, u1, 1)
+
+	∂q3∂q1 = model.grad_sim.grad.∂q3∂q1[1]
+	∂q3∂q2 = model.grad_sim.grad.∂q3∂q2[1]
+
+	dx .= [zeros(nq, nq) I zeros(nq, 2 * nq); ∂q3∂q1 ∂q3∂q2 zeros(nq, 2 * nq); zeros(2 * nq, 2 * nq) I]
+
+	return dx
+end
+	
+function ftu(du, model::ImplicitDynamics, x, u, w)
+	nq = model.grad_sim.model.nq
+	nu = model.eval_sim.model.nu 
+
+	θ = x[2 * nq .+ (1:(2 * nq))]
+	q1 = x[1:nq]
+	q2 = x[nq .+ (1:nq)]
+	u1 = u[1:nu] 
+
+	v1 = (q2 - q1) ./ model.grad_sim.h
+
+	RoboDojo.step!(model.grad_sim, q2, v1, u1, 1)
+
+	∂q3∂u1 = model.grad_sim.grad.∂q3∂u1[1]
+	
+	du .= [zeros(nq, nu); ∂q3∂u1; zeros(2 * nq, nu)]
+
+	return du
+end
+
+ilqr_dyn1 = IterativeLQR.Dynamics((d, x, u, w) -> f1(d, im_dyn1, x, u, w), 
+					(dx, x, u, w) -> f1x(dx, im_dyn1, x, u, w), 
+					(du, x, u, w) -> f1u(du, im_dyn1, x, u, w), 
+					4 * hopper.nq, 2 * hopper.nq, hopper.nu + 2 * hopper.nq)  
+
+ilqr_dynt = IterativeLQR.Dynamics((d, x, u, w) -> ft(d, im_dynt, x, u, w), 
+	(dx, x, u, w) -> ftx(dx, im_dynt, x, u, w), 
+	(du, x, u, w) -> ftu(du, im_dynt, x, u, w), 
+	4 * hopper.nq, 4 * hopper.nq, hopper.nu)  
+
+model = [ilqr_dyn1, [ilqr_dynt for t = 2:T-1]...]
+
+# ## initial conditions
+q1 = [0.0; 0.5 + hopper.foot_radius; 0.0; 0.5]
+qM = [0.5; 0.5 + hopper.foot_radius; 0.0; 0.5]
+qT = [1.0; 0.5 + hopper.foot_radius; 0.0; 0.5]
+q_ref = [0.5; 0.75 + hopper.foot_radius; 0.0; 0.25]
 
 x1 = [q1; q1]
 xM = [qM; qM]
 xT = [qT; qT]
 x_ref = [q_ref; q_ref]
 
-ū_stand = [t == 1 ? [0.0; model_implicit.dynamics.m.g * (model_implicit.dynamics.m.mb + model_implicit.dynamics.m.ml) * 0.5 * h; x1] : [0.0; model_implicit.dynamics.m.g * (model_implicit.dynamics.m.mb + model_implicit.dynamics.m.ml) * 0.5 * h] for t = 1:T-1]
-w = [zeros(model_implicit.d) for t = 1:T-1]
-
-# Rollout
-x̄ = rollout(model_implicit, x1, ū_stand, w, h, T)
-
-# Objective
-
-# gait 1
-# Q = [(t == 1 ? 1.0 * Diagonal([1.0; 10.0; 1.0; 10.0; 1.0; 10.0; 1.0; 10.0])
-# 	: t == T ? Diagonal([1.0; 1.0; 1.0; 1.0; 1.0; 1.0; 1.0; 1.0; zeros(model_implicit.n)])
-# 	: 0.1 * Diagonal([1.0; 10.0; 1.0; 10.0; 1.0; 10.0; 1.0; 10.0; zeros(model_implicit.n)])) for t = 1:T]
-# q = [t == 1 ? -2.0 * Q[t] * (t < 6 ? x_ref : x_ref) : -2.0 * Q[t] * [(t < 6 ? x_ref : x_ref); zeros(model_implicit.n)] for t = 1:T]
-# R = [t == 1 ? Diagonal([1.0e-1 * ones(model_implicit.m); 1.0e-1 * ones(nq); 1.0e-5 * ones(nq)]) : Diagonal(1.0e-1 * ones(model_implicit.m)) for t = 1:T-1]
-# r = [t == 1 ? [zeros(model_implicit.m); -2.0 * R[t][1:nq, 1:nq] * x1[1:nq]; zeros(nq)] : zeros(model_implicit.m) for t = 1:T-1]
-
-# gait 2
-# Q = [(t == 1 ? 1.0 * Diagonal([1.0; 10.0; 1.0; 10.0; 1.0; 10.0; 1.0; 10.0])
-# 	: t == T ? Diagonal([1.0; 1.0; 1.0; 1.0; 1.0; 1.0; 1.0; 1.0; zeros(model_implicit.n)])
-# 	: 1.0 * Diagonal([1.0; 10.0; 1.0; 10.0; 1.0; 10.0; 1.0; 10.0; zeros(model_implicit.n)])) for t = 1:T]
-# q = [t == 1 ? -2.0 * Q[t] * (t < 6 ? x_ref : x_ref) : -2.0 * Q[t] * [(t < 6 ? x_ref : x_ref); zeros(model_implicit.n)] for t = 1:T]
-# R = [t == 1 ? Diagonal([1.0 * ones(model_implicit.m); 1.0e-1 * ones(nq); 1.0e-5 * ones(nq)]) : Diagonal(1.0 * ones(model_implicit.m)) for t = 1:T-1]
-# r = [t == 1 ? [zeros(model_implicit.m); -2.0 * R[t][1:nq, 1:nq] * x1[1:nq]; zeros(nq)] : zeros(model_implicit.m) for t = 1:T-1]
-
-# gait 3
-Q = [(t == 1 ? 1.0 * Diagonal([1.0; 10.0; 1.0; 10.0; 1.0; 10.0; 1.0; 10.0])
-	: t == T ? Diagonal([1.0; 1.0; 1.0; 1.0; 1.0; 1.0; 1.0; 1.0; zeros(model_implicit.n)])
-	: 0.1 * Diagonal([1.0; 10.0; 1.0; 10.0; 1.0; 10.0; 1.0; 10.0; zeros(model_implicit.n)])) for t = 1:T]
-q = [t == 1 ? -2.0 * Q[t] * (t < 6 ? x_ref : x_ref) : -2.0 * Q[t] * [(t < 6 ? x_ref : x_ref); zeros(model_implicit.n)] for t = 1:T]
-R = [t == 1 ? Diagonal([1.0e-3 * ones(model_implicit.m); 1.0e-1 * ones(nq); 1.0e-5 * ones(nq)]) : Diagonal(1.0e-3 * ones(model_implicit.m)) for t = 1:T-1]
-r = [t == 1 ? [zeros(model_implicit.m); -2.0 * R[t][1:nq, 1:nq] * x1[1:nq]; zeros(nq)] : zeros(model_implicit.m) for t = 1:T-1]
-
-obj = StageCosts([QuadraticCost(Q[t], q[t],
-	t < T ? R[t] : nothing, t < T ? r[t] : nothing) for t = 1:T], T)
-
-function g(obj::StageCosts, x, u, t)
-	T = obj.T
-    if t < T
-		Q = obj.cost[t].Q
-		q = obj.cost[t].q
-	    R = obj.cost[t].R
-		r = obj.cost[t].r
-        return x' * Q * x + q' * x + u' * R * u + r' * u
-    elseif t == T
-		Q = obj.cost[T].Q
-		q = obj.cost[T].q
-        return x' * Q * x + q' * x
-    else
-        return 0.0
-    end
+# ## objective
+function obj1(x, u, w)
+	J = 0.0 
+	J += 0.5 * transpose(x - x_ref) * Diagonal([1.0; 10.0; 1.0; 10.0; 1.0; 10.0; 1.0; 10.0]) * (x - x_ref) 
+	J += 0.5 * transpose(u) * Diagonal([1.0e-1 * ones(hopper.nu); 1.0e-1 * ones(hopper.nq); 1.0e-5 * ones(hopper.nq)]) * u
+	return J
 end
 
-# Constraints
+function objt(x, u, w)
+	J = 0.0 
+	J += 0.5 * transpose(x - [x_ref; zeros(2 * hopper.nq)]) * 0.1 * Diagonal([1.0; 10.0; 1.0; 10.0; 1.0; 10.0; 1.0; 10.0; zeros(2 * hopper.nq)]) * (x - [x_ref; zeros(2 * hopper.nq)]) 
+	J += 0.5 * transpose(u) * Diagonal(1.0e-1 * ones(hopper.nu)) * u
+	return J
+end
+
+function objT(x, u, w)
+	J = 0.0 
+	J += 0.5 * transpose(x - [x_ref; zeros(2 * hopper.nq)]) * Diagonal([1.0; 1.0; 1.0; 1.0; 1.0; 1.0; 1.0; 1.0; zeros(2 * hopper.nq)]) * (x - [x_ref; zeros(2 * hopper.nq)]) 
+	return J
+end
+
+c1 = IterativeLQR.Cost(obj1, 2 * hopper.nq, hopper.nu + 2 * hopper.nq, 0)
+ct = IterativeLQR.Cost(objt, 4 * hopper.nq, hopper.nu, 0)
+cT = IterativeLQR.Cost(objT, 4 * hopper.nq, 0, 0)
+obj = [c1, [ct for t = 2:T-1]..., cT]
+
+# ## constraints
 ul = [-10.0; -10.0]
 uu = [10.0; 10.0]
-p = [t < T ? (t == 1 ? 2 * model_implicit.m + nq + 2 * 2 : (t == 6 ? 2 * model_implicit.m + 0 * model_implicit.n : 2 * model_implicit.m)) : (model_implicit.n - 2) + 2 for t = 1:T]
-info_1 = Dict(:ul => ul, :uu => uu, :inequality => (1:2 * model_implicit.m))
-info_t = Dict(:ul => ul, :uu => uu, :inequality => (1:2 * model_implicit.m))
-info_T = Dict(:xT => xT, :inequality => (1:2))
-con_set = [StageConstraint(p[t], t < T ? (t == 1 ? info_1 : info_t) : info_T) for t = 1:T]
+ 
+function stage1_con(x, u, w) 
+    [
+    ul - u[1:hopper.nu]; # control limit (lower)
+    u[1:hopper.nu] - uu; # control limit (upper)
 
-function c!(c, cons::StageConstraints, x, u, t)
-	T = cons.T
-	p = cons.con[t].p
+	u[hopper.nu .+ (1:hopper.nq)] - x1[1:hopper.nq];
 
-	if t < T
-		ul = cons.con[t].info[:ul]
-		uu = cons.con[t].info[:uu]
-		u1 = view(u, 1:model_implicit.m)
-		c[1:(2 * model_implicit.m)] .= [ul - u1; u1 - uu]
+	RoboDojo.kinematics_foot(hopper, u[hopper.nu .+ (1:hopper.nq)]) - RoboDojo.kinematics_foot(hopper, x1[1:hopper.nq]);
+	RoboDojo.kinematics_foot(hopper, u[hopper.nu + hopper.nq .+ (1:hopper.nq)]) - RoboDojo.kinematics_foot(hopper, x1[hopper.nq .+ (1:hopper.nq)])
+    ]
+end 
 
-		if t == 1
-			c[2 * model_implicit.m .+ (1:nq)] .= view(u, model_implicit.m .+ (1:nq)) - view(x1, 1:nq)
-			c[2 * model_implicit.m + nq .+ (1:2)] = kinematics(model_implicit.dynamics.m,
-                view(u, model_implicit.m .+ (1:nq))) - kinematics(model_implicit.dynamics.m, view(x1, 1:nq))
-			c[2 * model_implicit.m + nq + 2 .+ (1:2)] = kinematics(model_implicit.dynamics.m,
-                view(u, model_implicit.m + nq .+ (1:nq))) - kinematics(model_implicit.dynamics.m, view(x1, nq .+ (1:nq)))
-		end
-	end
+function staget_con(x, u, w) 
+    [
+    ul - u[collect(1:hopper.nu)]; # control limit (lower)
+    u[collect(1:hopper.nu)] - uu; # control limit (upper)
+    ]
+end 
 
-	if t == T
-		x_travel = 0.5
-		θ = view(x, model_implicit.n .+ (1:model_implicit.n))
-
-		c[1] = x_travel - (x[1] - θ[1])
-		c[2] = x_travel - (x[nq + 1] - θ[nq + 1])
-		c[2 .+ (1:3)] = x[1:nq][collect([2, 3, 4])] - θ[1:nq][collect([2, 3, 4])]
-		c[2 + 3 .+ (1:3)] = x[nq .+ (1:nq)][collect([2, 3, 4])] - θ[nq .+ (1:nq)][collect([2, 3, 4])]
-	end
+function terminal_con(x, u, w) 
+	x_travel = 0.5
+	θ = x[2 * hopper.nq .+ (1:(2 * hopper.nq))]
+    [
+	x_travel - (x[1] - θ[1])
+	x_travel - (x[hopper.nq + 1] - θ[hopper.nq + 1])
+	x[1:hopper.nq][collect([2, 3, 4])] - θ[1:hopper.nq][collect([2, 3, 4])]
+	x[hopper.nq .+ (1:hopper.nq)][collect([2, 3, 4])] - θ[hopper.nq .+ (1:hopper.nq)][collect([2, 3, 4])]
+    ]
 end
 
-prob = problem_data(model_implicit, obj, con_set, copy(x̄), copy(ū_stand), w, h, T,
- 	n = n, m = m,
-	analytical_dynamics_derivatives = true)
+con1 = Constraint(stage1_con, 2 * hopper.nq, hopper.nu + 2 * hopper.nq, idx_ineq=collect(1:4))
+cont = Constraint(staget_con, 4 * hopper.nq, hopper.nu, idx_ineq=collect(1:4))
+conT = Constraint(terminal_con, 4 * hopper.nq, 0, idx_ineq=collect(1:2))
+cons = [con1, [cont for t = 2:T-1]..., conT]
 
-# Solve
-@time stats = constrained_ddp_solve!(prob,
-    verbose = true,
-    grad_tol = 1.0e-3,
-	max_iter = 100,
-    max_al_iter = 10,
-	ρ_init = 1.0,
-    ρ_scale = 10.0,
-	con_tol = 1.0e-3)
-
-@show ilqr_iterations(stats)
-@show objective(obj, prob.m_data.x̄, prob.m_data.ū)
-@show prob.s_data.c_max
-
-x, u = current_trajectory(prob)
-x̄, ū = nominal_trajectory(prob)
-
-J = 0.0
-x = x̄
-u = ū
-for t = 1:T
-    if t < T
-        J += x[t][1:8]' * Q[t][1:8, 1:8] * x[t][1:8] + q[t][1:8]' * x[t][1:8] + u[t][1:2]' * R[t][1:2, 1:2] * u[t][1:2] + r[t][1:2]' * u[t][1:2]
-    elseif t == T
-        J += x[t][1:8]' * Q[t][1:8, 1:8] * x[t][1:8] + q[t][1:8]' * x[t][1:8]
-    else
-        J += 0.0
-    end
-end
-@show J
-
-# @save joinpath(pwd(), "examples/implicit_dynamics/examples/trajectories/hopper_gait_1.jld2") x u
-# @load joinpath(pwd(), "examples/implicit_dynamics/examples/trajectories/hopper_gait_1.jld2") x u
-
-# @save joinpath(pwd(), "examples/implicit_dynamics/examples/trajectories/hopper_gait_2.jld2") x u
-# @load joinpath(pwd(), "examples/implicit_dynamics/examples/trajectories/hopper_gait_2.jld2") x u
-
-# @save joinpath(pwd(), "examples/implicit_dynamics/examples/trajectories/hopper_gait_3.jld2") x u
-# @load joinpath(pwd(), "examples/implicit_dynamics/examples/trajectories/hopper_gait_3.jld2") x u
-
+# ## rollout
+ū_stand = [t == 1 ? [0.0; hopper.gravity * hopper.mass_body * 0.5 * h; x1] : [0.0; hopper.gravity * hopper.mass_body * 0.5 * h] for t = 1:T-1]
+w = [zeros(hopper.nw) for t = 1:T-1]
+x̄ = rollout(model, x1, ū_stand)
 q̄ = state_to_configuration(x̄)
+RoboDojo.visualize!(vis, hopper, x̄, Δt=h)
 
-# update initial state using optimized parameter
-q̄[1] = ū[1][model_implicit.m .+ (1:nq)]
-q̄[2] = ū[1][model_implicit.m + nq .+ (1:nq)]
+prob = problem_data(model, obj, cons)
+initialize_controls!(prob, ū_stand)
+initialize_states!(prob, x̄)
 
-include(joinpath(pwd(), "models/visualize.jl"))
-include(joinpath(pwd(), "examples/implicit_dynamics/models/hopper_2D/visuals.jl"))
+# ## solve
+IterativeLQR.solve!(prob, verbose=true)
 
-vis = Visualizer()
-render(vis)
-visualize!(vis, model, q̄[1:end], Δt = h)
-#
-#  x̄[T][1:model_implicit.n] - ū[1][model_implicit.m .+ (1:model_implicit.n)]
-#
-function mirror_gait(q, T; n = 5)
-	qm = [deepcopy(q)...]
-	um = [deepcopy(u)...]
+# ## solution
+x_sol, u_sol = get_trajectory(prob)
+q_sol = state_to_configuration(x_sol)
+RoboDojo.visualize!(vis, hopper, q_sol, Δt=h)
 
-	stride = zero(qm[1])
-	strd = q[T+1][1] - q[2][1]
-	@show stride[1] += strd
-	@show 0.5 * stride
-
-	for i = 1:n-1
-		for t = 1:T-1
-			push!(qm, q[t+2] + stride)
-			push!(um, u[t])
-		end
-		stride[1] += strd
-	end
-	len = qm[end][1]
-
-	# center
-	for t = 1:length(qm)
-		qm[t][1] -= 0.5 * len
-	end
-
-	return qm, um
-end
-
-qm, um = mirror_gait(q̄, T)
-visualize!(vis, model, qm, Δt = h)
-settransform!(vis["/Cameras/default"],
-        compose(Translation(0.0, -95.0, -1.0), LinearMap(RotY(0.0 * π) * RotZ(-π / 2.0))))
-setprop!(vis["/Cameras/default/rotated/<object>"], "zoom", 50)
-#
-open(vis)
-#
-# body_points = Vector{Point{3,Float64}}()
-# foot_points = Vector{Point{3,Float64}}()
-# body_points_opt = Vector{Point{3,Float64}}()
-# foot_points_opt = Vector{Point{3,Float64}}()
-#
-# for q in qm
-# 	push!(body_points, Point(q[1], 0.01, q[2] + 0.05))
-# 	push!(body_points_opt, Point(q[1], -0.0, q[2] + 0.05))
-#
-# 	k = kinematics(model, q)
-# 	push!(foot_points, Point(k[1], 0.01, k[2] + 0.05))
-# 	push!(foot_points_opt, Point(k[1], -0.0, k[2] + 0.05))
-# end
-#
-# line_opt_mat = LineBasicMaterial(color=color=Colors.RGBA(1.0, 0.0, 0.0, 1.0), linewidth=10.0)
-# body_line_mat = LineBasicMaterial(color=color=Colors.RGBA(1.0, 153.0 / 255.0, 51.0 / 255.0, 1.0), linewidth=5.0)
-# foot_line_mat = LineBasicMaterial(color=color=Colors.RGBA(51.0 / 255.0, 1.0, 1.0, 1.0), linewidth=5.0)
-#
-# setobject!(vis[:body_traj], MeshCat.Line(body_points, body_line_mat))
-# setobject!(vis[:foot_traj], MeshCat.Line(foot_points, foot_line_mat))
-# setobject!(vis[:body_traj_opt], MeshCat.Line(body_points_opt[1:T+1], line_opt_mat))
-# setobject!(vis[:foot_traj_opt], MeshCat.Line(foot_points_opt[1:T+1], line_opt_mat))
-#
-# for i = 1:length(body_points)
-#     setobject!(vis["body_line_vertex_$i"], Sphere(Point3f0(0),
-#         convert(Float32, 0.005)),
-#         MeshPhongMaterial(color = Colors.RGBA(1.0, 153.0 / 255.0, 51.0 / 255.0, 1.0)))
-#         settransform!(vis["body_line_vertex_$i"], Translation(body_points[i]))
-#     setobject!(vis["foot_line_vertex_$i"], Sphere(Point3f0(0),
-#         convert(Float32, 0.005)),
-#         MeshPhongMaterial(color = Colors.RGBA(51.0 / 255.0, 1.0, 1.0, 1.0)))
-#         settransform!(vis["foot_line_vertex_$i"], Translation(foot_points[i]))
-#
-#     i > T+1 && continue
-#     setobject!(vis["body_line_opt_vertex_$i"], Sphere(Point3f0(0),
-#         convert(Float32, 0.0075)),
-#         MeshPhongMaterial(color = Colors.RGBA(1, 0, 0, 1.0)))
-#         settransform!(vis["body_line_opt_vertex_$i"], Translation(body_points_opt[i]))
-#     setobject!(vis["foot_line_opt_vertex_$i"], Sphere(Point3f0(0),
-#         convert(Float32, 0.0075)),
-#         MeshPhongMaterial(color = Colors.RGBA(1, 0, 0, 1.0)))
-#         settransform!(vis["foot_line_opt_vertex_$i"], Translation(foot_points_opt[i]))
-# end

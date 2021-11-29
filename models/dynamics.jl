@@ -15,7 +15,7 @@ end
 function ImplicitDynamics(model, h, r_func, rz_func, rθ_func; 
 	T=1, r_tol=1.0e-6, κ_eval_tol=1.0e-6, κ_grad_tol=1.0e-6, 
 	no_impact=false, no_friction=false, 
-	nn=2 * model.nq, n=2 * model.nq, m=model.nu, d=model.nw, p=0) 
+	nn=2 * model.nq, n=2 * model.nq, m=model.nu, d=model.nw, nc=model.nc, nb=model.nc) 
 
 	eval_sim = Simulator(model, T; 
         h=h, 
@@ -49,16 +49,37 @@ function ImplicitDynamics(model, h, r_func, rz_func, rθ_func;
 			diff_sol=true,
 			verbose=false))  
 
-	if no_impact 
-		eval_sim.traj.γ .= [zeros(0)]
-		grad_sim.traj.γ .= [zeros(0)]
+	# set trajectory sizes
+	eval_sim.traj.γ .= [zeros(nc) for t = 1:T] 
+	grad_sim.traj.γ .= [zeros(nc) for t = 1:T] 
 
-		eval_sim.grad.∂γ1∂q1 .= [zeros(0, model.nq)] 
-    	eval_sim.grad.∂γ1∂q2 .= [zeros(0, model.nq)]
-    	eval_sim.grad.∂γ1∂u1 .= [zeros(0, model.nu)]
-		grad_sim.grad.∂γ1∂q1 .= [zeros(0, model.nq)] 
-    	grad_sim.grad.∂γ1∂q2 .= [zeros(0, model.nq)]
-    	grad_sim.grad.∂γ1∂u1 .= [zeros(0, model.nu)]
+	eval_sim.grad.∂γ1∂q1 .= [zeros(nc, model.nq) for t = 1:T] 
+	eval_sim.grad.∂γ1∂q2 .= [zeros(nc, model.nq) for t = 1:T]
+	eval_sim.grad.∂γ1∂u1 .= [zeros(nc, model.nu) for t = 1:T]
+	grad_sim.grad.∂γ1∂q1 .= [zeros(nc, model.nq) for t = 1:T] 
+	grad_sim.grad.∂γ1∂q2 .= [zeros(nc, model.nq) for t = 1:T]
+	grad_sim.grad.∂γ1∂u1 .= [zeros(nc, model.nu) for t = 1:T]
+
+	eval_sim.traj.b .= [zeros(nb) for t = 1:T] 
+	grad_sim.traj.b .= [zeros(nb) for t = 1:T]
+
+	eval_sim.grad.∂b1∂q1 .= [zeros(nb, model.nq) for t = 1:T] 
+	eval_sim.grad.∂b1∂q2 .= [zeros(nb, model.nq) for t = 1:T]
+	eval_sim.grad.∂b1∂u1 .= [zeros(nb, model.nu) for t = 1:T]
+	grad_sim.grad.∂b1∂q1 .= [zeros(nb, model.nq) for t = 1:T] 
+	grad_sim.grad.∂b1∂q2 .= [zeros(nb, model.nq) for t = 1:T]
+	grad_sim.grad.∂b1∂u1 .= [zeros(nb, model.nu) for t = 1:T]
+
+	if no_impact 
+		eval_sim.traj.γ .= [zeros(0) for t = 1:T]
+		grad_sim.traj.γ .= [zeros(0) for t = 1:T]
+
+		eval_sim.grad.∂γ1∂q1 .= [zeros(0, model.nq) for t = 1:T] 
+    	eval_sim.grad.∂γ1∂q2 .= [zeros(0, model.nq) for t = 1:T]
+    	eval_sim.grad.∂γ1∂u1 .= [zeros(0, model.nu) for t = 1:T]
+		grad_sim.grad.∂γ1∂q1 .= [zeros(0, model.nq) for t = 1:T] 
+    	grad_sim.grad.∂γ1∂q2 .= [zeros(0, model.nq) for t = 1:T]
+    	grad_sim.grad.∂γ1∂u1 .= [zeros(0, model.nu) for t = 1:T]
 	end
 
 	if no_friction 

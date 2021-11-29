@@ -1,13 +1,13 @@
 using Plots
 using Random
 Random.seed!(1)
-
+using ForwardDiff
 # ## planar push model 
-include("../models/planar_push/model.jl")
+include("../models/planar_push/model_fd.jl")
 include("../models/planar_push/simulator.jl")
 
-# path = @get_scratch!("planarpush")
-@load "/home/taylor/Research/optimization_based_dynamics/residual.jld2" r_func rz_func rθ_func rz_array rθ_array
+MODE = :translate
+MODE = :rotate 
 
 # ## visualization 
 include("../models/planar_push/visuals.jl")
@@ -16,29 +16,31 @@ vis = Visualizer()
 render(vis)
 
 # ## build implicit dynamics
-
 h = 0.1
 T = 26
 
-eval_sim = Simulator(planarpush, 1; 
-        h=h, 
-        residual=eval(r_func), 
-        jacobian_z=eval(rz_func), 
-        jacobian_θ=eval(rθ_func),
-        diff_sol=false,
-        solver_opts=InteriorPointOptions(
-            undercut=Inf,
-            γ_reg=0.1,
-            r_tol=1.0e-6,
-            κ_tol=1.0e-3,  
-            max_ls=25,
-            ϵ_min=0.25,
-            diff_sol=false,
-            verbose=false))
+function r_func(r, z, θ, κ) 
+    r .= residual(planarpush, z, θ, κ)
+end 
+rz_func(rz, z, θ) = ForwardDiff.jacobian!(rz, a -> residual(planarpush, a, θ, [0.0]), z)
+rθ_func(rθ, z, θ) = ForwardDiff.jacobian!(rθ, a -> residual(planarpush, z, a, [0.0]), θ)
+
+# r0 = zeros(num_var(planarpush))
+# rz0 = zeros(num_var(planarpush), num_var(planarpush))
+# rθ0 = zeros(num_var(planarpush), num_data(planarpush))
+
+# z0 = rand(num_var(planarpush))
+# θ0 = rand(num_data(planarpush))
+# κ0 = [1.0]
+
+# residual(planarpush, z0, θ0, κ0)
+# r_func(r0, z0, θ0, κ0)
+# rz_func(rz0, z0, θ0)
+# rθ_func(rθ0, z0, θ0)
 
 # ## discrete-time state-space model
 im_dyn = ImplicitDynamics(planarpush, h, eval(r_func), eval(rz_func), eval(rθ_func); 
-    r_tol=1.0e-8, κ_eval_tol=1.0e-4, κ_grad_tol=1.0e-3) 
+    r_tol=1.0e-8, κ_eval_tol=1.0e-4, κ_grad_tol=1.0e-3, nc=1, nb=9) 
 
 nx = 2 * planarpush.nq
 nu = planarpush.nu 
@@ -53,13 +55,25 @@ ilqr_dyn = IterativeLQR.Dynamics((d, x, u, w) -> f(d, im_dyn, x, u, w),
 # ## model for iLQR
 model = [ilqr_dyn for t = 1:T-1]
 
-
-# ## goal
-x_goal = 1.0
-y_goal = 0.0
-θ_goal = 0.0 * π
-qT = [x_goal, y_goal, θ_goal, x_goal - r_dim, y_goal - r_dim]
-xT = [qT; qT]
+# ## initial conditions and goal
+if MODE == :translate 
+	q0 = [0.0, 0.0, 0.0, -r_dim - 1.0e-8, 0.0]
+	q1 = [0.0, 0.0, 0.0, -r_dim - 1.0e-8, 0.0]
+	x_goal = 1.0
+	y_goal = 0.0
+	θ_goal = 0.0 * π
+	qT = [x_goal, y_goal, θ_goal, x_goal - r_dim, y_goal - r_dim]
+	xT = [qT; qT]
+elseif MODE == :rotate 
+	q0 = [0.0, 0.0, 0.0, -r_dim - 1.0e-8, -0.01]
+	q1 = [0.0, 0.0, 0.0, -r_dim - 1.0e-8, -0.01]
+	x1 = [q1; q1]
+	x_goal = 0.5
+	y_goal = 0.5
+	θ_goal = 0.5 * π
+	qT = [x_goal, y_goal, θ_goal, x_goal-r_dim, y_goal-r_dim]
+	xT = [qT; qT]
+end
 
 # ## objective
 function objt(x, u, w)
@@ -71,7 +85,7 @@ function objt(x, u, w)
 
 	J += 0.5 * transpose(v1) * Diagonal([1.0, 1.0, 1.0, 0.1, 0.1]) * v1 
 	J += 0.5 * transpose(x - xT) * Diagonal([1.0, 1.0, 1.0, 0.1, 0.1, 1.0, 1.0, 1.0, 0.1, 0.1]) * (x - xT) 
-	J += 0.5 * 1.0e-1 * transpose(u) * u
+	J += 0.5 * (MODE == :translate ? 1.0e-1 : 1.0e-2) * transpose(u) * u
 
 	return J
 end
@@ -114,14 +128,12 @@ cont = Constraint(stage_con, nx, nu, idx_ineq=collect(1:(2 * nu)))
 conT = Constraint(terminal_con, nx, 0)
 cons = [[cont for t = 1:T-1]..., conT]
 
-q0 = [0.0, 0.0, 0.0, -r_dim - 1.0e-8, 0.0]
-q1 = [0.0, 0.0, 0.0, -r_dim - 1.0e-8, 0.0]
 x1 = [q0; q1]
-ū = [t < 5 ? [1.0; 0.0] : [0.0; 0.0] for t = 1:T-1]
+ū = MODE == :translate ? [t < 5 ? [1.0; 0.0] : [0.0; 0.0] for t = 1:T-1] : [t < 5 ? [1.0; 0.0] : t < 10 ? [0.5; 0.0] : [0.0; 0.0] for t = 1:T-1]
 w = [zeros(nw) for t = 1:T-1]
-
 x̄ = rollout(model, x1, ū)
 q̄ = state_to_configuration(x̄)
+visualize!(vis, planarpush, q̄, Δt=h)
 
 prob = problem_data(model, obj, cons)
 initialize_controls!(prob, ū)
@@ -133,4 +145,4 @@ IterativeLQR.solve!(prob, verbose=true)
 # ## solution
 x_sol, u_sol = get_trajectory(prob)
 q_sol = state_to_configuration(x_sol)
-visualize!(vis, cartpole, q_sol, Δt=h)
+visualize!(vis, planarpush, q_sol, Δt=h)

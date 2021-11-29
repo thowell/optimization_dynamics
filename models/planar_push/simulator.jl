@@ -12,6 +12,7 @@ function RoboDojo.indices_z(model::PlanarPush)
 end
 
 RoboDojo.nominal_configuration(model::PlanarPush) = [-1.0; 0.0; 0.0; 0.0; 0.0]
+
 function RoboDojo.indices_optimization(model::PlanarPush) 
     nq = model.nq
     nz = num_var(model)
@@ -58,4 +59,5 @@ function RoboDojo.initialize_z!(z, model::PlanarPush, idx::IndicesZ, q)
     z[idx.sb] .= 0.1
 end
 
-RoboDojo.indices_optimization(planarpush)
+num_var(model::PlanarPush) = model.nq + 2 * 1 + 2 * 14
+friction_coefficients(model::PlanarPush{T}) where T = T[]  

@@ -1,4 +1,4 @@
-module optimization_based_dynamics
+module optimization_dynamics
 
 using LinearAlgebra 
 using Symbolics 
