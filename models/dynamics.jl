@@ -13,7 +13,8 @@ struct ImplicitDynamics{T} <: Model{T}
 end
 
 function ImplicitDynamics(model, h, r_func, rz_func, rθ_func; 
-	T=1, r_tol=1.0e-6, κ_eval_tol=1.0e-6, κ_grad_tol=1.0e-6, no_impact=false) 
+	T=1, r_tol=1.0e-6, κ_eval_tol=1.0e-6, κ_grad_tol=1.0e-6, 
+	no_impact=false, no_friction=false) 
 
 	n = 2 * model.nq
 	m = model.nu 
@@ -63,13 +64,30 @@ function ImplicitDynamics(model, h, r_func, rz_func, rθ_func;
     	grad_sim.grad.∂γ1∂u1 .= [zeros(0, model.nu)]
 	end
 
+	if no_friction 
+		eval_sim.traj.b .= [zeros(0)]
+		grad_sim.traj.b .= [zeros(0)]
+
+		eval_sim.grad.∂b1∂q1 .= [zeros(0, model.nq)] 
+    	eval_sim.grad.∂b1∂q2 .= [zeros(0, model.nq)]
+    	eval_sim.grad.∂b1∂u1 .= [zeros(0, model.nu)]
+		grad_sim.grad.∂b1∂q1 .= [zeros(0, model.nq)] 
+    	grad_sim.grad.∂b1∂q2 .= [zeros(0, model.nq)]
+    	grad_sim.grad.∂b1∂u1 .= [zeros(0, model.nu)]
+	end
+
 	f_tmp = zeros(n) 
 	fx_tmp = zeros(n, n) 
 	fu_tmp = zeros(n, m) 
+
+	idx_q1 = collect(1:nq) 
+	idx_q2 = collect(nq .+ (1:nq)) 
+	idx_u1 = collect(1:nu)
 	
 	ImplicitDynamics(n, m, d, 
 		eval_sim, grad_sim, 
-		f_tmp, fx_tmp, fu_tmp)
+		f_tmp, fx_tmp, fu_tmp,
+		idx_q1, idx_q2, idx_u1)
 end
 
 function f(d, model::ImplicitDynamics, x, u, w)

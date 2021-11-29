@@ -45,5 +45,5 @@ rθ_no_friction_func = eval(build_function(rθ_no_friction, z_no_friction, θ)[2
 rz_no_friction_array = similar(rz_no_friction, Float64)
 rθ_no_friction_array = similar(rθ_no_friction, Float64)
 
-@save joinpath(path, "no_friction.jl") r_no_friction_func rz_no_friction_func rθ_no_friction_func rz_no_friction_array rθ_no_friction_array
-@load joinpath(path, "no_friction.jl") r_no_friction_func rz_no_friction_func rθ_no_friction_func rz_no_friction_array rθ_no_friction_array
+@save joinpath(path, "no_friction.jld2") r_no_friction_func rz_no_friction_func rθ_no_friction_func rz_no_friction_array rθ_no_friction_array
+@load joinpath(path, "no_friction.jld2") r_no_friction_func rz_no_friction_func rθ_no_friction_func rz_no_friction_array rθ_no_friction_array

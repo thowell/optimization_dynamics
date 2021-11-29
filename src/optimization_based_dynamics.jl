@@ -2,6 +2,7 @@ module optimization_based_dynamics
 
 using LinearAlgebra 
 using Symbolics 
+using IfElse
 using JLD2
 using DirectTrajectoryOptimization
 using IterativeLQR
