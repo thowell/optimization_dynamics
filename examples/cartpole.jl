@@ -2,6 +2,15 @@ using Plots
 using Random
 Random.seed!(1)
 
+# ## cart-pole model 
+include("../models/cartpole/model.jl")
+# include("../models/cartpole/simulator_friction.jl")
+include("../models/cartpole/simulator_no_friction.jl")
+
+path = @get_scratch!("cartpole")
+# @load joinpath(path, "friction.jld2") r_func rz_func rθ_func rz_array rθ_array
+@load joinpath(path, "no_friction.jld2") r_no_friction_func rz_no_friction_func rθ_no_friction_func rz_no_friction_array rθ_no_friction_array
+
 # ## visualization 
 include("../models/cartpole/visuals.jl")
 include("../models/visualize.jl")
@@ -17,10 +26,14 @@ T = 51
 # cartpole.friction .= 0.25 
 cartpole.friction .= 0.1 
 # cartpole.friction .= 0.01 
+cartpole.friction .= 0.0
 
 # ## discrete-time state-space model
-im_dyn = ImplicitDynamics(cartpole, h, r_func, rz_func, rθ_func; 
-    r_tol=1.0e-8, κ_eval_tol=1.0e-4, κ_grad_tol=1.0e-3, no_impact=true) 
+# im_dyn = ImplicitDynamics(cartpole, h, eval(r_func), eval(rz_func), eval(rθ_func); 
+#     r_tol=1.0e-8, κ_eval_tol=1.0e-4, κ_grad_tol=1.0e-3, no_impact=true) 
+
+im_dyn = ImplicitDynamics(cartpole_no_friction, h, eval(r_no_friction_func), eval(rz_no_friction_func), eval(rθ_no_friction_func); 
+    r_tol=1.0e-8, κ_eval_tol=1.0e-4, κ_grad_tol=1.0e-3, no_impact=true, no_friction=true) 
 
 nx = 2 * cartpole.nq
 nu = cartpole.nu 
@@ -48,8 +61,8 @@ xT = [qT; qT]
 function objt(x, u, w)
 	J = 0.0 
 
-	q1 = x[1:nq] 
-	q2 = x[nq .+ (1:nq)] 
+	q1 = x[1:cartpole.nq] 
+	q2 = x[cartpole.nq .+ (1:cartpole.nq)] 
 	v1 = (q2 - q1) ./ h
 
 	J += 0.5 * transpose(v1) * v1 
@@ -62,8 +75,8 @@ end
 function objT(x, u, w)
 	J = 0.0 
 	
-	q1 = x[1:nq] 
-	q2 = x[nq .+ (1:nq)] 
+	q1 = x[1:cartpole.nq] 
+	q2 = x[cartpole.nq .+ (1:cartpole.nq)] 
 	v1 = (q2 - q1) ./ h
 
 	J += 0.5 * transpose(v1) * v1
@@ -97,12 +110,10 @@ cont = Constraint(stage_con, nx, nu, idx_ineq=collect(1:2))
 conT = Constraint(terminal_con, nx, 0)
 cons = [[cont for t = 1:T-1]..., conT]
 
-
 # ## rollout
-ū = [(t == 1 ? -1.0 : 0.0) * ones(nu) for t = 1:T-1]
-# ū = [(t == 1 ? 1.0 : 0.0) * ones(nu) for t = 1:T-1] # initialize no friction model this direction (not sure why it goes the oppostive direction...)
+# ū = [(t == 1 ? -1.0 : 0.0) * ones(nu) for t = 1:T-1]
+ū = [(t == 1 ? 1.0 : 0.0) * ones(nu) for t = 1:T-1] # initialize no friction model this direction (not sure why it goes the oppostive direction...)
 w = [zeros(nw) for t = 1:T-1]
-
 x̄ = rollout(model, x1, ū)
 q̄ = state_to_configuration(x̄)
 visualize!(vis, cartpole, q̄, Δt=h)

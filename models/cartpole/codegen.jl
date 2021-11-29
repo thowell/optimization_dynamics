@@ -19,9 +19,9 @@ rz = Symbolics.jacobian(r, z, simplify=true)
 rθ = Symbolics.jacobian(r, θ, simplify=true)
 
 # Build function
-r_func = eval(build_function(r, z, θ, κ)[2])
-rz_func = eval(build_function(rz, z, θ)[2])
-rθ_func = eval(build_function(rθ, z, θ)[2])
+r_func = build_function(r, z, θ, κ)[2]
+rz_func = build_function(rz, z, θ)[2]
+rθ_func = build_function(rθ, z, θ)[2]
 
 rz_array = similar(rz, Float64)
 rθ_array = similar(rθ, Float64)
@@ -38,9 +38,9 @@ rz_no_friction = Symbolics.jacobian(r_no_friction, z_no_friction, simplify=true)
 rθ_no_friction = Symbolics.jacobian(r_no_friction, θ, simplify=true)
 
 # Build function
-r_no_friction_func = eval(build_function(r_no_friction, z_no_friction, θ, κ)[2])
-rz_no_friction_func = eval(build_function(rz_no_friction, z_no_friction, θ)[2])
-rθ_no_friction_func = eval(build_function(rθ_no_friction, z_no_friction, θ)[2])
+r_no_friction_func = build_function(r_no_friction, z_no_friction, θ, κ)[2]
+rz_no_friction_func = build_function(rz_no_friction, z_no_friction, θ)[2]
+rθ_no_friction_func = build_function(rθ_no_friction, z_no_friction, θ)[2]
 
 rz_no_friction_array = similar(rz_no_friction, Float64)
 rθ_no_friction_array = similar(rθ_no_friction, Float64)

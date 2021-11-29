@@ -1,1 +1,1 @@
-## optimization_based_dynamics
+## optimization_dynamics

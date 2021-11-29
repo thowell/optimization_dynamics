@@ -14,11 +14,8 @@ end
 
 function ImplicitDynamics(model, h, r_func, rz_func, rθ_func; 
 	T=1, r_tol=1.0e-6, κ_eval_tol=1.0e-6, κ_grad_tol=1.0e-6, 
-	no_impact=false, no_friction=false) 
-
-	n = 2 * model.nq
-	m = model.nu 
-	d = model.nw 
+	no_impact=false, no_friction=false, 
+	nn=2 * model.nq, n=2 * model.nq, m=model.nu, d=model.nw, p=0) 
 
 	eval_sim = Simulator(model, T; 
         h=h, 
@@ -76,13 +73,13 @@ function ImplicitDynamics(model, h, r_func, rz_func, rθ_func;
     	grad_sim.grad.∂b1∂u1 .= [zeros(0, model.nu)]
 	end
 
-	f_tmp = zeros(n) 
-	fx_tmp = zeros(n, n) 
-	fu_tmp = zeros(n, m) 
+	f_tmp = zeros(nn) 
+	fx_tmp = zeros(nn, n) 
+	fu_tmp = zeros(nn, m) 
 
-	idx_q1 = collect(1:nq) 
-	idx_q2 = collect(nq .+ (1:nq)) 
-	idx_u1 = collect(1:nu)
+	idx_q1 = collect(1:model.nq) 
+	idx_q2 = collect(model.nq .+ (1:model.nq)) 
+	idx_u1 = collect(1:model.nu)
 	
 	ImplicitDynamics(n, m, d, 
 		eval_sim, grad_sim, 
@@ -114,7 +111,7 @@ function fx(dx, model::ImplicitDynamics, x, u, w)
 	# q2 = view(x, nq .+ (1:nq))
 	q1 = x[1:nq] 
 	q2 = x[nq .+ (1:nq)]
-	v1 = (q2 - q1) ./ model.eval_sim.h
+	v1 = (q2 - q1) ./ model.grad_sim.h
 
 	RoboDojo.step!(model.grad_sim, q2, v1, u, 1)
 
@@ -133,7 +130,7 @@ function fu(du, model::ImplicitDynamics, x, u, w)
 	# q2 = view(x, nq .+ (1:nq))
 	q1 = x[1:nq] 
 	q2 = x[nq .+ (1:nq)]
-	v1 = (q2 - q1) ./ model.eval_sim.h
+	v1 = (q2 - q1) ./ model.grad_sim.h
 
 	RoboDojo.step!(model.grad_sim, q2, v1, u, 1)
 

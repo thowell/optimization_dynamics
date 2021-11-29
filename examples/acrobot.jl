@@ -24,7 +24,7 @@ T = 101
 # im_dyn = ImplicitDynamics(acrobot, h, eval(r_func), eval(rz_func), eval(rθ_func); 
 #     r_tol=1.0e-8, κ_eval_tol=1.0e-4, κ_grad_tol=1.0e-2, no_friction=true) 
 
-im_dyn = ImplicitDynamics(acrobot, h, eval(r_no_impact_func), eval(rz_no_impact_func), eval(rθ_no_impact_func); 
+im_dyn = ImplicitDynamics(acrobot_no_impact, h, eval(r_no_impact_func), eval(rz_no_impact_func), eval(rθ_no_impact_func); 
     r_tol=1.0e-8, κ_eval_tol=1.0e-4, κ_grad_tol=1.0e-2, no_impact=true, no_friction=true) 
 
 nx = 2 * acrobot.nq
