@@ -1,9 +1,9 @@
 using Plots
 using Random
 Random.seed!(1)
-using ForwardDiff
+
 # ## planar push model 
-include("../models/planar_push/model_fd.jl")
+include("../models/planar_push/model_p_norm.jl")
 include("../models/planar_push/simulator.jl")
 
 MODE = :translate
@@ -19,28 +19,12 @@ render(vis)
 h = 0.1
 T = 26
 
-function r_func(r, z, θ, κ) 
-    r .= residual(planarpush, z, θ, κ)
-end 
-rz_func(rz, z, θ) = ForwardDiff.jacobian!(rz, a -> residual(planarpush, a, θ, [0.0]), z)
-rθ_func(rθ, z, θ) = ForwardDiff.jacobian!(rθ, a -> residual(planarpush, z, a, [0.0]), θ)
-
-# r0 = zeros(num_var(planarpush))
-# rz0 = zeros(num_var(planarpush), num_var(planarpush))
-# rθ0 = zeros(num_var(planarpush), num_data(planarpush))
-
-# z0 = rand(num_var(planarpush))
-# θ0 = rand(num_data(planarpush))
-# κ0 = [1.0]
-
-# residual(planarpush, z0, θ0, κ0)
-# r_func(r0, z0, θ0, κ0)
-# rz_func(rz0, z0, θ0)
-# rθ_func(rθ0, z0, θ0)
+path = @get_scratch!("planarpush")
+@load joinpath(path, "residual.jld2") r_func rz_func rθ_func rz_array rθ_array
 
 # ## discrete-time state-space model
 im_dyn = ImplicitDynamics(planarpush, h, eval(r_func), eval(rz_func), eval(rθ_func); 
-    r_tol=1.0e-8, κ_eval_tol=1.0e-4, κ_grad_tol=1.0e-3, nc=1, nb=9) 
+    r_tol=1.0e-8, κ_eval_tol=1.0e-4, κ_grad_tol=1.0e-2, nc=1, nb=9) 
 
 nx = 2 * planarpush.nq
 nu = planarpush.nu 

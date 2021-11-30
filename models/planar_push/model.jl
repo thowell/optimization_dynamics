@@ -12,41 +12,23 @@ struct PlanarPush{T} <: Model{T}
     mass_block::T
 	mass_pusher::T
 
-    inertia
-    μ_surface
-	μ_pusher
-    gravity
+    inertia::T
+    μ_surface::T
+	μ_pusher::T
+    gravity::T
 
-    contact_corner_offset
-	block_dim
-	block_rnd
-end
-
-# signed distance for a box
-function sd_box(p, dim)
-    # q = abs.(p) - dim
-	q1 = IfElse.ifelse(p[1] >= 0.0, p[1], -1.0 * p[1]) - dim[1] 
-	q2 = IfElse.ifelse(p[2] >= 0.0, p[2], -1.0 * p[2]) - dim[2] 
-	#norm(max.(q, 1.0e-32))
-	q1_clip = max(q1, 1.0e-32) 
-	q2_clip = max(q2, 1.0e-32)
-	q_norm = sqrt(q1_clip^2.0 + q2_clip^2.0) 
-	#min(maximum(q), 0.0)
-	q_max = IfElse.ifelse(q1 > q2, q1, q2) 
-	q_min_max = min(q_max, 0.0)
-	#norm(max.(q, 1.0e-32)) + min(maximum(q), 0.0)
-	return q_norm + q_min_max
-end
-
-function sd_2d_box(p, pose, dim, rnd)
-	x, y, θ = pose
-	R = rotation_matrix(-θ)
-	p_rot = R * (p - pose[1:2])
-	return sd_box(p_rot, dim) - rnd
+    contact_corner_offset::Vector{Vector{T}}
 end
 
 # Kinematics
 r_dim = 0.1
+
+function sd_2d_box(p, pose, dim, rnd)
+	x, y, θ = pose
+	Δ = rotation_matrix(-θ) * (p - pose[1:2])
+	s = 10
+	sum(Δ.^s)^(1/s) - r_dim
+end
 
 # contact corner
 cc1 = [r_dim, r_dim]
@@ -99,7 +81,7 @@ end
 
 function N_func(model::PlanarPush, q)
 	ϕ = ϕ_func(model, q) 
-	Symbolics.jacobian(ϕ, q)
+	vec(Symbolics.jacobian(ϕ, q))
 end
 
 function p_func(model, x)
@@ -114,48 +96,26 @@ function p_func(model, x)
 end
 
 function P_func(model::PlanarPush, q)
-
-    # P_block = ForwardDiff.jacobian(p_func, q)
 	pf = p_func(model, q)
 	P_block = Symbolics.jacobian(pf, q)
 
-	p_pusher = q[1:2] 
-	p_block = q[2 .+ (1:3)]
+	p_block = q[1:3]
+	p_pusher = q[4:5] 
 
-	sd = sd_2d_box(p_pusher, p_block, model.block_dim, model.block_rnd)
-	N = Symbolics.gradient(sd, q) 
+	ϕ = ϕ_func(model, q)
+	N = vec(Symbolics.jacobian(ϕ, q))
 
-	N_pusher = N[1:2]
+	N_pusher = N[4:5]
 
-	n_dir = N_pusher[1:2] ./ sqrt(N_pusher[1]^2.0 + N_pusher[2]^2.0)
-	# t_dir = rotation_matrix(0.5 * π) * n_dir
+	n_dir = N_pusher ./ sqrt(N_pusher[1]^2.0 + N_pusher[2]^2.0)
 	t_dir = [-n_dir[2]; n_dir[1]]
 
 	r = p_pusher - p_block[1:2]
-	# m = cross([r; 0.0], [t_dir; 0.0])[3]
 	m = r[1] * t_dir[2] - r[2] * t_dir[1]
 
-	# return m
-
 	P = [t_dir[1]; t_dir[2]; m; -t_dir[1]; -t_dir[2]]
-	# P = [t_dir[1]; t_dir[2]; 0.0; -t_dir[1]; -t_dir[2]]'
 
 	return [P_block; transpose(P)]
-end
-
-function dynamics(model::PlanarPush, mass_matrix, dynamics_bias, h, q0, q1, u1, w1, λ1, q2)
-	qm1 = 0.5 * (q0 + q1)
-    vm1 = (q1 - q0) / h[1]
-    qm2 = 0.5 * (q1 + q2)
-    vm2 = (q2 - q1) / h[1]
-
-	D1L1, D2L1 = lagrangian_derivatives(mass_matrix, dynamics_bias, qm1, vm1)
-	D1L2, D2L2 = lagrangian_derivatives(mass_matrix, dynamics_bias, qm2, vm2)
-
-    return (0.5 * h[1] * D1L1 + D2L1 + 0.5 * h[1] * D1L2 - D2L2
-            + B_func(model, qm2) * u1
-            + transpose(N_func(model, q2)) * λ1[end:end]
-            + transpose(P_func(model, q2)) * λ1[1:end-1])
 end
 
 function residual(model, z, θ, κ)
@@ -181,37 +141,48 @@ function residual(model, z, θ, κ)
 	sb1 = z[nq + 2 * nc_impact + 5 + 9 + 5 .+ (1:9)]
 
 	ϕ = ϕ_func(model, q2)
+	N = vec(Symbolics.jacobian(ϕ, q2))
 
-	λ1 = [b1; γ1]
-    vT = P_func(model, q2) * (q2 - q1) / h[1]
+	# λ1 = [b1; γ1]
+	P = P_func(model, q2)
+    vT = P * (q2 - q1) ./ h[1]
+
+	qm1 = 0.5 * (q0 + q1)
+    vm1 = (q1 - q0) / h[1]
+    qm2 = 0.5 * (q1 + q2)
+    vm2 = (q2 - q1) / h[1]
+
+	D1L1, D2L1 = lagrangian_derivatives(a -> M_func(model, a), (a, b) -> C_func(model, a, b), qm1, vm1)
+	D1L2, D2L2 = lagrangian_derivatives(a -> M_func(model, a), (a, b) -> C_func(model, a, b), qm2, vm2)
+
+    d = (0.5 * h[1] * D1L1 + D2L1 + 0.5 * h[1] * D1L2 - D2L2#
+            + B_func(model, qm2) * u1
+            + N * γ1[1]
+            + transpose(P) * b1)
 
     [
-     dynamics(model, a -> M_func(model, a), (a, b) -> C_func(model, a, b),
-	 	h, q0, q1, u1, zeros(model.nw), λ1, q2);
-	
+	 d;
+    
 	 s1 .- ϕ;
 
-	 vT[1:2] - sb1[1:2];
 	 ψ1[1] .- model.μ_surface[1] * model.mass_block * model.gravity * h[1] * 0.25;
 
-	 vT[3:4] - sb1[2 .+ (1:2)];
 	 ψ1[2] .- model.μ_surface[2] * model.mass_block * model.gravity * h[1] * 0.25;
 
-	 vT[5:6] - sb1[2 + 2 .+ (1:2)];
 	 ψ1[3] .- model.μ_surface[3] * model.mass_block * model.gravity * h[1] * 0.25;
 
-	 vT[7:8] - sb1[2 + 2 + 2 .+ (1:2)];
 	 ψ1[4] .- model.μ_surface[4] * model.mass_block * model.gravity * h[1] * 0.25;
 
-	 vT[9] - sb1[2 + 2 + 2 + 2 + 1];
-	 ψ1[5] .- model.μ_pusher * γ1;
+	 ψ1[5] .- model.μ_pusher * γ1[1];
 
-	 γ1 .* s1 .- κ;
-	 cone_product([ψ1[1]; b1[1:2]], [sψ1[1]; sb1[1:2]]) - [κ; 0.0; 0.0];
-	 cone_product([ψ1[2]; b1[2 .+ (1:2)]], [sψ1[2]; sb1[2 .+ (1:2)]]) - [κ; 0.0; 0.0];
-	 cone_product([ψ1[3]; b1[4 .+ (1:2)]], [sψ1[3]; sb1[4 .+ (1:2)]]) - [κ; 0.0; 0.0];
-	 cone_product([ψ1[4]; b1[6 .+ (1:2)]], [sψ1[4]; sb1[6 .+ (1:2)]]) - [κ; 0.0; 0.0];
-	 cone_product([ψ1[5]; b1[8 .+ (1:1)]], [sψ1[5]; sb1[8 .+ (1:1)]]) - [κ; 0.0];
+	 vT - sb1;
+
+	 γ1 .* s1 .- κ[1];
+	 cone_product([ψ1[1]; b1[1:2]], [sψ1[1]; sb1[1:2]]) - [κ[1]; 0.0; 0.0];
+	 cone_product([ψ1[2]; b1[2 .+ (1:2)]], [sψ1[2]; sb1[2 .+ (1:2)]]) - [κ[1]; 0.0; 0.0];
+	 cone_product([ψ1[3]; b1[4 .+ (1:2)]], [sψ1[3]; sb1[4 .+ (1:2)]]) - [κ[1]; 0.0; 0.0];
+	 cone_product([ψ1[4]; b1[6 .+ (1:2)]], [sψ1[4]; sb1[6 .+ (1:2)]]) - [κ[1]; 0.0; 0.0];
+	 cone_product([ψ1[5]; b1[8 .+ (1:1)]], [sψ1[5]; sb1[8 .+ (1:1)]]) - [κ[1]; 0.0];
     ]
 end
 

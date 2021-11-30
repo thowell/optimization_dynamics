@@ -8,19 +8,19 @@ From the Julia REPL, type `]` to enter the Pkg REPL mode and run:
 pkg> add https://github.com/thowell/optimization_dynamics
 ```
 
-## Acrobot 
+## acrobot with joint limits
 <img src="animations/acrobot_joint_limits.gif" alt="drawing" width="400"/>
 
-## Cart-pole 
+## cart-pole with joint friction
 <img src="animations/cartpole_friction_35.gif" alt="drawing" width="400"/>
 
-## Hopper 
+## hopper gait
 <img src="animations/hopper_gait_1.gif" alt="drawing" width="400"/>
 
-## Rocket 
+## rocket with thrust limits
 <img src="animations/starship_bellyflop_landing.gif" alt="drawing" width="400"/>
 
-## Planar Push
+## planar push
 <img src="animations/planar_push_rotate.gif" alt="drawing" width="400"/> 
 
 
