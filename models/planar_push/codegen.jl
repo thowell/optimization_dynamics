@@ -1,10 +1,3 @@
-using Symbolics 
-using LinearAlgebra
-using IfElse
-using Scratch 
-using JLD2
-using Pkg 
-
 nq = planarpush.nq
 nu = planarpush.nu
 nc = planarpush.nc

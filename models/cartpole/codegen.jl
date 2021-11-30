@@ -1,4 +1,3 @@
-
 nq = cartpole.nq
 nu = cartpole.nu
 nc = cartpole.nc
@@ -13,7 +12,7 @@ nθ = num_data(cartpole, nf=length(friction_coefficients(cartpole)))
 @variables κ[1:1]
 
 # Residual
-r = vec(residual(cartpole, z, θ, κ))
+r = residual(cartpole, z, θ, κ)
 r = Symbolics.simplify.(r)
 rz = Symbolics.jacobian(r, z, simplify=true)
 rθ = Symbolics.jacobian(r, θ, simplify=true)

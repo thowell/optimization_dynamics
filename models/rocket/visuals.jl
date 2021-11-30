@@ -1,4 +1,5 @@
-function visualize!(vis, p::Rocket, q; Δt = 0.1, mesh = true, T_off = length(q))
+function visualize!(vis, p::Rocket, q; 
+	Δt=0.1, mesh=false, T_off=length(q))
 	default_background!(vis)
 
 	if mesh
@@ -18,8 +19,8 @@ function visualize!(vis, p::Rocket, q; Δt = 0.1, mesh = true, T_off = length(q)
         setobject!(vis["rocket"]["body"], body,
           MeshPhongMaterial(color = RGBA(1.0, 0.0, 0.0, 1.0)))
 	else
-		body = Cylinder(Point3f0(0.0, 0.0, -1.0 * model.length),
-			Point3f0(0.0, 0.0, 1.0 * model.length),
+		body = Cylinder(Point3f0(0.0, 0.0, -1.0 * p.length),
+			Point3f0(0.0, 0.0, 1.0 * p.length),
 			convert(Float32, 0.15))
 
 		setobject!(vis["rocket"], body,
