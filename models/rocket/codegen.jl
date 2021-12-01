@@ -36,7 +36,6 @@ path = @get_scratch!("rocket")
 @save joinpath(path, "residual.jld2") r_func rz_func rθ_func rz_array rθ_array
 @load joinpath(path, "residual.jld2") r_func rz_func rθ_func rz_array rθ_array
 
-
 solver_opts=InteriorPointOptions(
             r_tol=1e-8,
             κ_tol=1.0,  
@@ -64,13 +63,13 @@ ip = interior_point(
 idx_z = RoboDojo.indices_z(rocket)
 idx_θ = RoboDojo.indices_θ(rocket)
 
-ip.z[idx_z.q] .= x1 
-ip.θ[idx_θ.q1] .= x1 
-ip.θ[idx_θ.u] .= 0.0
-ip.θ[idx_θ.h] .= h
+# ip.z[idx_z.q] .= x1 
+# ip.θ[idx_θ.q1] .= x1 
+# ip.θ[idx_θ.u] .= 0.0
+# ip.θ[idx_θ.h] .= h
 
-interior_point_solve!(ip)
-ip.z[idx_z.q]
+# interior_point_solve!(ip)
+# ip.z[idx_z.q]
 
 function f_rocket(d, x, u, w)
     # initialize
@@ -85,11 +84,6 @@ function f_rocket(d, x, u, w)
     d .= copy(ip.z[idx_z.q])
     return ip.z[idx_z.q] 
 end
-
-d0 = zeros(nz) 
-x2 = f(d0, x1, zeros(nu), zeros(nw))
-x3 = f(d0, x2, zeros(nu), zeros(nw))
-x4 = f(d0, x3, zeros(nu), zeros(nw))
 
 function fx_rocket(dx, x, u, w)
     # initialize
@@ -119,32 +113,28 @@ function fu_rocket(du, x, u, w)
     return ip.δz[idx_z.q, idx_θ.u] 
 end
 
-
-##
-m = 3
-nz = m + 1 + 1 + 1 + 1 + m
-nθ = m + 1
+# projection
+nz = 3 + 1 + 1 + 1 + 1 + 3
+nθ = 3 + 1
 
 function residual(z, θ, κ)
-    u = z[1:m]
-    s = z[m .+ (1:1)]
-    y = z[m + 1 .+ (1:1)]
-    w = z[m + 1 + 1 .+ (1:1)]
-    p = z[m + 1 + 1 + 1 .+ (1:1)]
-    v = z[m + 1 + 1 + 1 + 1 .+ (1:m)]
-
-    ū = θ[1:m]
-    T = θ[m .+ (1:1)]
-
+    u = z[1:3]
+    p = z[4:4]
+    s = z[5:5]
+    w = z[6:6] 
+    y = z[7:7]
+    v = z[8:10]
+   
+    ū = θ[1:3]
+    uu = θ[3 .+ (1:1)]
     idx = [3; 1; 2]
-
     [
      u - ū - v - [0.0; 0.0; y[1] + p[1]];
+     uu[1] - u[3] - s[1];
      -y[1] - w[1];
-     T[1] - u[3] - s[1];
-     w .* s .- κ
-     p .* u[3] .- κ
-     cone_product(v[idx], u[idx]) - [κ[1]; 0.0; 0.0]
+     w[1] * s[1] - κ[1];
+     p[1] * u[3] - κ[1];
+     cone_product(u[idx], v[idx]) - [κ[1]; 0.0; 0.0]
     ]
 end
 
@@ -161,9 +151,6 @@ rθ = Symbolics.jacobian(r, θ)
 rθ = simplify.(rθ)
 rθ_func_proj = Symbolics.build_function(rθ, z, θ)[2]
 
-idx_ineq = collect([3, 4, 6, 7])
-idx_soc = [collect([3, 1, 2]), collect([10, 8, 9])]
-
 rz_array_proj = similar(rz, Float64)
 rθ_array_proj = similar(rθ, Float64)
 
@@ -171,10 +158,10 @@ rθ_array_proj = similar(rθ, Float64)
 @load joinpath(path, "projection.jld2") r_func_proj rz_func_proj rθ_func_proj rz_array_proj rθ_array_proj
 
 idx_opt_proj = IndicesOptimization(
-                    nz, 
-                    nz, 
-                    [collect([3, 4]), collect([7, 6])],
-                    [collect([3, 4]), collect([7, 6])],
+                    10, 
+                    10, 
+                    [[5, 3], [6, 4]],
+                    [[5, 3], [6, 4]],
                     [[collect([3, 1, 2]), collect([10, 8, 9])]],
                     [[collect([3, 1, 2]), collect([10, 8, 9])]],
                     collect(1:5),
@@ -199,7 +186,10 @@ eval_ip = interior_point(
         r_tol=1e-8,
         κ_tol=1.0e-4,  
         max_ls=25,
-        ϵ_min=0.25,
+        ϵ_min=0.0,
+        undercut=Inf,
+        γ_reg=0.0, 
+        κ_reg=0.0,
         diff_sol=false,
         verbose=false))
 
@@ -216,35 +206,20 @@ grad_ip = interior_point(
         r_tol=1e-8,
         κ_tol=1.0e-3,  
         max_ls=25,
-        ϵ_min=0.25,
+        ϵ_min=0.0,
+        undercut=Inf,
+        γ_reg=0.0, 
+        κ_reg=0.0,
         diff_sol=true,
         verbose=false))
 
-function cone_projection(z)
-    n = length(z)
-
-    z0 = z[1]
-    z1 = view(z, 2:n)
-
-    if norm(z1) <= z0
-        return z, true
-    elseif norm(z1) <= -z0
-        return zero(z), false
-    else
-        a = 0.5 * (1.0 + z0 / norm(z1))
-        z_proj = zero(z)
-        z_proj[1] = a * norm(z1)
-        z_proj[2:end] = a * z1
-        return z_proj, false
-    end
-end
-
-function soc_projection(x)
-    proj = cone_projection(x[[3;1;2]])[1]
-	eval_ip.z .= [proj[2:3]; proj[1]; 0.1 * ones(7)]
-    eval_ip.z[3] += max(1.0, norm(proj[2:3])) * 2.0
+function soc_projection(x, uu)
+	eval_ip.z .= 0.1
+    eval_ip.z[3] += 1.0
     eval_ip.z[10] += 1.0
-	eval_ip.θ .= [x; uu[3]]
+    eval_ip.z[7] = 0.0
+
+	eval_ip.θ .= [x; uu]
 
 	status = interior_point_solve!(eval_ip)
 
@@ -255,14 +230,15 @@ function soc_projection(x)
 	return eval_ip.z[1:3]
 end
 
-soc_projection([100.0, 0.0, 1.0])
+# soc_projection([0.0, 0.0, 10.0], 1.0)
 
-function soc_projection_jacobian(x)
-    proj = cone_projection(x[[3;1;2]])[1]
-	grad_ip.z .= [proj[2:3]; proj[1]; 0.1 * ones(7)]
-    grad_ip.z[3] += max(1.0, norm(proj[2:3])) * 2.0
+function soc_projection_gradient(x, uu)
+	grad_ip.z .= 0.1
+    grad_ip.z[3] += 1.0
     grad_ip.z[10] += 1.0
-	grad_ip.θ .= [x; uu[3]]
+    grad_ip.z[7] = 0.0
+
+	grad_ip.θ .= [x; uu]
 
 	status = interior_point_solve!(grad_ip)
 
@@ -273,4 +249,55 @@ function soc_projection_jacobian(x)
 	return grad_ip.δz[1:3, 1:3]
 end
 
-soc_projection_jacobian([10.0, 0.0, 1.0])
+# soc_projection_gradient([10.0, 0.0, 0.0], 1.0)
+
+function f_rocket_proj(d, x, u, w)
+    # thrust projection
+    u_proj = soc_projection(u, uu[3])
+
+    # initialize
+    ip.z[idx_z.q] .= copy(x)
+    ip.θ[idx_θ.q1] .= copy(x)
+    ip.θ[idx_θ.u] .= u_proj
+    ip.θ[idx_θ.h] .= h
+    # solve
+    ip.opts.diff_sol = false
+    interior_point_solve!(ip)
+    # solution 
+    d .= ip.z[idx_z.q]
+    return d
+end
+
+function fx_rocket_proj(dx, x, u, w)
+    # thrust projection
+    u_proj = soc_projection(u, uu[3])
+
+    # initialize
+    ip.z[idx_z.q] .= x
+    ip.θ[idx_θ.q1] .= x
+    ip.θ[idx_θ.u] .= u_proj
+    ip.θ[idx_θ.h] .= h
+    # solve
+    ip.opts.diff_sol = true
+    interior_point_solve!(ip)
+    # solution 
+    dx .= ip.δz[idx_z.q, idx_θ.q1]
+    return dx 
+end
+
+function fu_rocket_proj(du, x, u, w)
+    # thrust projection
+    u_proj = soc_projection(u, uu[3]) 
+    δu_proj = soc_projection_gradient(u, uu[3] )
+    # initialize
+    ip.z[idx_z.q] .= x
+    ip.θ[idx_θ.q1] .= x
+    ip.θ[idx_θ.u] .= u_proj
+    ip.θ[idx_θ.h] .= h
+    # solve
+    ip.opts.diff_sol = true
+    interior_point_solve!(ip)
+    # solution 
+    du .= ip.δz[idx_z.q, idx_θ.u] * δu_proj
+    return du 
+end
