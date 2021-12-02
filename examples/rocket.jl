@@ -2,6 +2,13 @@ using Plots
 using Random
 Random.seed!(1)
 
+MODE = :projection 
+MODE = :nominal
+
+# ## thrust constraints
+ul = [-5.0; -5.0; 0.0]
+uu = [5.0; 5.0; 12.5]
+
 # ## rocket model 
 include("../models/rocket/model.jl")
 include("../models/rocket/simulator.jl")
@@ -19,25 +26,22 @@ render(vis)
 h = 0.05
 T = 61
 
-# ## discrete-time state-space model
-# im_dyn = ImplicitDynamics(rocket, h, eval(r_func), eval(rz_func), eval(rθ_func); 
-#     r_tol=1.0e-8, κ_eval_tol=1.0, κ_grad_tol=1.0, no_impact=true, no_friction=true,
-#     nn=rocket.nq, n=rocket.nq, m=rocket.nq, nc=0, nb=0) 
-
 nx = rocket.nq
 nu = rocket.nu 
 nw = rocket.nw
 
 # ## dynamics for iLQR
-ilqr_dyn = IterativeLQR.Dynamics((d, x, u, w) -> f_rocket_proj(d, x, u, w), 
-					(dx, x, u, w) -> fx_rocket_proj(dx, x, u, w), 
-					(du, x, u, w) -> fu_rocket_proj(du, x, u, w), 
-					nx, nx, nu)  
-
-ilqr_dyn = IterativeLQR.Dynamics((d, x, u, w) -> f_rocket(d, x, u, w), 
-		        (dx, x, u, w) -> fx_rocket(dx, x, u, w), 
-                (du, x, u, w) -> fu_rocket(du, x, u, w), 
-                nx, nx, nu)  
+if MODE == :projection
+    ilqr_dyn = IterativeLQR.Dynamics((d, x, u, w) -> f_rocket_proj(d, x, u, w), 
+                        (dx, x, u, w) -> fx_rocket_proj(dx, x, u, w), 
+                        (du, x, u, w) -> fu_rocket_proj(du, x, u, w), 
+                        nx, nx, nu)  
+else
+    ilqr_dyn = IterativeLQR.Dynamics((d, x, u, w) -> f_rocket(d, x, u, w), 
+                    (dx, x, u, w) -> fx_rocket(dx, x, u, w), 
+                    (du, x, u, w) -> fu_rocket(du, x, u, w), 
+                    nx, nx, nu)  
+end
 
 # ## model for iLQR
 model = [ilqr_dyn for t = 1:T-1]
@@ -79,15 +83,19 @@ cT = IterativeLQR.Cost(objT, nx, 0, 0)
 obj = [[ct for t = 1:T-1]..., cT]
 
 # ## constraints
-ul = [-5.0; -5.0; 0.0]
-uu = [5.0; 5.0; 12.5]
 x_con = [-0.5; 0.5]
 y_con = [-0.75; 0.75]
 
+if MODE == :projection 
+    idx_thrust = collect(1:0) 
+else 
+    idx_thrust = collect(3:3) 
+end 
+
 function stage_con(x, u, w) 
     [
-    (ul - u)[3]; # control limit (lower)
-    (u - uu)[3]; # control limit (upper)
+    (ul - u)[idx_thrust]; # control limit (lower)
+    (u - uu)[idx_thrust]; # control limit (upper)
     rocket.length - x[3] 
     ]
 end 
@@ -102,12 +110,12 @@ function terminal_con(x, u, w)
     ]
 end
 
-cont = Constraint(stage_con, nx, nu, idx_ineq=collect(1:3))#collect(1:1))#
+cont = Constraint(stage_con, nx, nu, idx_ineq=collect(1:(1 + 2 * length(idx_thrust))))
 conT = Constraint(terminal_con, nx, 0, idx_ineq=collect(1:4))
 cons = [[cont for t = 1:T-1]..., conT]
 
 # ## rollout
-ū = [0.0 * [1.0e-2; 1.0e-2; 1.0e-2] .* randn(nu) for t = 1:T-1]
+ū = [zeros(nu) for t = 1:T-1]
 w = [zeros(nw) for t = 1:T-1]
 x̄ = rollout(model, x1, ū)
 visualize!(vis, rocket, x̄, Δt=h)
@@ -117,16 +125,16 @@ initialize_controls!(prob, ū)
 initialize_states!(prob, x̄)
 
 # ## solve
-IterativeLQR.solve!(prob, 
+@time IterativeLQR.solve!(prob, 
     linesearch = :armijo,
-    α_min = 1.0e-8,
-    obj_tol = 1.0e-3,
-    grad_tol = 1.0e-3,
-    max_iter = 100,
-    max_al_iter = 10,
-    con_tol = 0.001,
-    ρ_init = 1.0, 
-    ρ_scale = 10.0,
+    α_min=1.0e-5,
+    obj_tol=1.0e-3,
+    grad_tol=1.0e-3,
+    max_iter=50,
+    max_al_iter=10,
+    con_tol=0.001,
+    ρ_init=1.0, 
+    ρ_scale=10.0,
     verbose=true)
 
 # ## solution

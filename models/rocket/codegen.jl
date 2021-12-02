@@ -63,14 +63,6 @@ ip = interior_point(
 idx_z = RoboDojo.indices_z(rocket)
 idx_θ = RoboDojo.indices_θ(rocket)
 
-# ip.z[idx_z.q] .= x1 
-# ip.θ[idx_θ.q1] .= x1 
-# ip.θ[idx_θ.u] .= 0.0
-# ip.θ[idx_θ.h] .= h
-
-# interior_point_solve!(ip)
-# ip.z[idx_z.q]
-
 function f_rocket(d, x, u, w)
     # initialize
     ip.z[idx_z.q] .= copy(x)

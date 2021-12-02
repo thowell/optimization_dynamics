@@ -35,3 +35,5 @@ end
 function RoboDojo.initialize_z!(z, model::DoublePendulum, idx::IndicesZ, q)
     z[idx.q] .= q
 end
+
+friction_coefficients(model::DoublePendulum{T}) where T = T[]
