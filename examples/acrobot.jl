@@ -123,6 +123,18 @@ IterativeLQR.solve!(prob,
     ρ_scale=10.0,
 	verbose=true)
 
+# @benchmark IterativeLQR.solve!(prob, x, u,
+# 	linesearch = :armijo,
+#     α_min=1.0e-5,
+#     obj_tol=1.0e-3,
+#     grad_tol=1.0e-3,
+#     max_iter=50,
+#     max_al_iter=10,
+#     con_tol=0.001,
+#     ρ_init=1.0, 
+#     ρ_scale=10.0,
+# 	verbose=false) setup=(x=deepcopy(x̄), u=deepcopy(ū))
+
 # ## solution
 x_sol, u_sol = get_trajectory(prob)
 q_sol = state_to_configuration(x_sol)

@@ -12,137 +12,163 @@ h = 0.05
 
 hopper = RoboDojo.hopper
 
+struct ParameterOptInfo{T}
+	idx_q1::Vector{Int} 
+	idx_q2::Vector{Int} 
+	idx_u1::Vector{Int}
+	idx_uθ::Vector{Int}
+	idx_uθ1::Vector{Int} 
+	idx_uθ2::Vector{Int}
+	idx_xθ::Vector{Int}
+	v1::Vector{T}
+end
+
+info = ParameterOptInfo(
+	collect(1:hopper.nq), 
+	collect(hopper.nq .+ (1:hopper.nq)), 
+	collect(1:hopper.nu), 
+	collect(hopper.nu .+ (1:2 * hopper.nq)),
+	collect(hopper.nu .+ (1:hopper.nq)), 
+	collect(hopper.nu + hopper.nq .+ (1:hopper.nq)), 
+	collect(2 * hopper.nq .+ (1:2 * hopper.nq)),
+	zeros(hopper.nq)
+)
+
 im_dyn1 = ImplicitDynamics(hopper, h, 
 	eval(RoboDojo.residual_expr(hopper)), 
 	eval(RoboDojo.jacobian_var_expr(hopper)), 
 	eval(RoboDojo.jacobian_data_expr(hopper)); 
     r_tol=1.0e-8, κ_eval_tol=1.0e-4, κ_grad_tol=1.0e-3,
-	nn=4 * hopper.nq, n=2 * hopper.nq, m=hopper.nu + 2 * hopper.nq) 
+	n=(2 * hopper.nq), m=(hopper.nu + 2 * hopper.nq), nc=4, nb=2, info=info)
 
 im_dynt = ImplicitDynamics(hopper, h, 
 	eval(RoboDojo.residual_expr(hopper)), 
 	eval(RoboDojo.jacobian_var_expr(hopper)), 
 	eval(RoboDojo.jacobian_data_expr(hopper)); 
     r_tol=1.0e-8, κ_eval_tol=1.0e-4, κ_grad_tol=1.0e-3,
-	nn=4 * hopper.nq, n=4 * hopper.nq, m=hopper.nu) 
+	n=4 * hopper.nq, m=hopper.nu, nc=4, nb=2, info=info) 
 
 function f1(d, model::ImplicitDynamics, x, u, w)
-	nq = model.eval_sim.model.nq
-	nu = model.eval_sim.model.nu 
 
-	θ = u[nu .+ (1:(2 * nq))]
-	q1 = θ[1:nq]
-	q2 = θ[nq .+ (1:nq)]
-	u1 = u[1:nu] 
+	θ = @views u[model.info.idx_uθ]
+	q1 = @views u[model.info.idx_uθ1]
+	q2 = @views u[model.info.idx_uθ2]
+	u1 = @views u[model.info.idx_u1] 
 
-	v1 = (q2 - q1) ./ model.eval_sim.h
+	model.info.v1 .= q2 
+	model.info.v1 .-= q1 
+	model.info.v1 ./= model.eval_sim.h
 
-	q3 = RoboDojo.step!(model.eval_sim, q2, v1, u1, 1)
+	q3 = RoboDojo.step!(model.eval_sim, q2, model.info.v1, u1, 1)
 
-	d[1:nq] .= q2 
-	d[nq .+ (1:nq)] .= q3
-	d[2 * nq .+ (1:(2 * nq))] = θ
+	d[model.info.idx_q1] = q2 
+	d[model.info.idx_q2] = q3
+	d[model.info.idx_xθ] = θ
 
 	return d
 end
 
 function f1x(dx, model::ImplicitDynamics, x, u, w)
-	nq = model.grad_sim.model.nq
-	nu = model.eval_sim.model.nu 
-
-	θ = u[nu .+ (1:(2 * nq))]
-	q1 = θ[1:nq]
-	q2 = θ[nq .+ (1:nq)]
-	u1 = u[1:nu] 
-
-	v1 = (q2 - q1) ./ model.grad_sim.h
-
-	RoboDojo.step!(model.grad_sim, q2, v1, u1, 1)
-
-	dx .= [zeros(nq, nq) zeros(nq, nq); zeros(nq, 2 * nq); zeros(2 * nq , 2 * nq)]
-
+	dx .= 0.0
 	return dx
 end
-	
+
 function f1u(du, model::ImplicitDynamics, x, u, w)
 	nq = model.grad_sim.model.nq
-	nu = model.eval_sim.model.nu 
 
-	θ = u[nu .+ (1:(2 * nq))]
-	q1 = θ[1:nq]
-	q2 = θ[nq .+ (1:nq)]
-	u1 = u[1:nu] 
+	θ = @views u[model.info.idx_uθ]
+	q1 = @views u[model.info.idx_uθ1]
+	q2 = @views u[model.info.idx_uθ2]
+	u1 = @views u[model.info.idx_u1] 
 
-	v1 = (q2 - q1) ./ model.grad_sim.h
+	model.info.v1 .= q2 
+	model.info.v1 .-= q1 
+	model.info.v1 ./= model.grad_sim.h
 
-	RoboDojo.step!(model.grad_sim, q2, v1, u1, 1)
+	RoboDojo.step!(model.grad_sim, q2, model.info.v1, u1, 1)
 
-	∂q3∂q1 = model.grad_sim.grad.∂q3∂q1[1]
-	∂q3∂q2 = model.grad_sim.grad.∂q3∂q2[1]
-	∂q3∂u1 = model.grad_sim.grad.∂q3∂u1[1]
-	
-	du .= [zeros(nq, nu) zeros(nq, nq) I; ∂q3∂u1 ∂q3∂q1 ∂q3∂q2; zeros(2 * nq, nu) I]
+	for i = 1:nq
+		du[model.info.idx_q1[i], model.info.idx_uθ[i]] = 1.0 
+	end
+	du[model.info.idx_q2, model.info.idx_u1] = model.grad_sim.grad.∂q3∂u1[1] 
+	du[model.info.idx_q2, model.info.idx_uθ1] = model.grad_sim.grad.∂q3∂q1[1] 
+	du[model.info.idx_q2, model.info.idx_uθ2] = model.grad_sim.grad.∂q3∂q2[1] 
 
 	return du
 end
 
+# f1u(fu0, im_dyn1, x0, u0, w0)
+# @benchmark f1u($fu0, $im_dyn1, $x0, $u0, $w0)
+
+# f0 = zeros(16)
+# fx0 = zeros(16, 16) 
+# fu0 = zeros(16, 2)
+# x0 = rand(16) 
+# u0 = rand(2)
+# w0 = zeros(0)
+# ft(f0, im_dyn1, x0, u0, w0)
+# @benchmark ft($f0, $im_dynt, $x0, $u0, $w0)
+
 function ft(d, model::ImplicitDynamics, x, u, w)
-	nq = model.eval_sim.model.nq
-	nu = model.eval_sim.model.nu 
 
-	θ = x[2 * nq .+ (1:(2 * nq))]
-	q1 = x[1:nq]
-	q2 = x[nq .+ (1:nq)]
-	u1 = u[1:nu] 
+	θ = @views x[model.info.idx_xθ] 
+	q1 = @views x[model.info.idx_q1]
+	q2 = @views x[model.info.idx_q2] 
+	u1 = u 
 
-	v1 = (q2 - q1) ./ model.eval_sim.h
+	model.info.v1 .= q2 
+	model.info.v1 .-= q1 
+	model.info.v1 ./= model.eval_sim.h 
 
-	q3 = RoboDojo.step!(model.eval_sim, q2, v1, u1, 1)
+	q3 = RoboDojo.step!(model.eval_sim, q2, model.info.v1, u1, 1)
 
-	d[1:nq] .= q2 
-	d[nq .+ (1:nq)] .= q3
-	d[2 * nq .+ (1:(2 * nq))] = θ
+	d[model.info.idx_q1] = q2 
+	d[model.info.idx_q2] = q3
+	d[model.info.idx_xθ] = θ
 
 	return d
 end
 
+
 function ftx(dx, model::ImplicitDynamics, x, u, w)
 	nq = model.grad_sim.model.nq
-	nu = model.eval_sim.model.nu 
 
-	θ = x[2 * nq .+ (1:(2 * nq))]
-	q1 = x[1:nq]
-	q2 = x[nq .+ (1:nq)]
-	u1 = u[1:nu] 
+	θ = @views x[model.info.idx_xθ] 
+	q1 = @views x[model.info.idx_q1]
+	q2 = @views x[model.info.idx_q2] 
+	u1 = u 
 
-	v1 = (q2 - q1) ./ model.grad_sim.h
+	model.info.v1 .= q2 
+	model.info.v1 .-= q1 
+	model.info.v1 ./= model.grad_sim.h 
 
-	RoboDojo.step!(model.grad_sim, q2, v1, u1, 1)
+	q3 = RoboDojo.step!(model.grad_sim, q2, model.info.v1, u1, 1)
 
-	∂q3∂q1 = model.grad_sim.grad.∂q3∂q1[1]
-	∂q3∂q2 = model.grad_sim.grad.∂q3∂q2[1]
-
-	dx .= [zeros(nq, nq) I zeros(nq, 2 * nq); ∂q3∂q1 ∂q3∂q2 zeros(nq, 2 * nq); zeros(2 * nq, 2 * nq) I]
+	for i = 1:nq
+		dx[model.info.idx_q1[i], model.info.idx_q2[i]] = 1.0 
+	end
+	dx[model.info.idx_q2, model.info.idx_q1] = model.grad_sim.grad.∂q3∂q1[1] 
+	dx[model.info.idx_q2, model.info.idx_q2] = model.grad_sim.grad.∂q3∂q2[1] 
+	for i in model.info.idx_xθ 
+		dx[i, i] = 1.0 
+	end
 
 	return dx
 end
 	
 function ftu(du, model::ImplicitDynamics, x, u, w)
-	nq = model.grad_sim.model.nq
-	nu = model.eval_sim.model.nu 
+	θ = @views x[model.info.idx_xθ] 
+	q1 = @views x[model.info.idx_q1]
+	q2 = @views x[model.info.idx_q2] 
+	u1 = u 
 
-	θ = x[2 * nq .+ (1:(2 * nq))]
-	q1 = x[1:nq]
-	q2 = x[nq .+ (1:nq)]
-	u1 = u[1:nu] 
+	model.info.v1 .= q2 
+	model.info.v1 .-= q1 
+	model.info.v1 ./= model.grad_sim.h 
 
-	v1 = (q2 - q1) ./ model.grad_sim.h
+	q3 = RoboDojo.step!(model.grad_sim, q2, model.info.v1, u1, 1)
 
-	RoboDojo.step!(model.grad_sim, q2, v1, u1, 1)
-
-	∂q3∂u1 = model.grad_sim.grad.∂q3∂u1[1]
-	
-	du .= [zeros(nq, nu); ∂q3∂u1; zeros(2 * nq, nu)]
+	du[model.info.idx_q2, model.info.idx_u1] = model.grad_sim.grad.∂q3∂u1[1]
 
 	return du
 end
