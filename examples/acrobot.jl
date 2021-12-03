@@ -1,14 +1,13 @@
-using Plots
+using optimization_dynamics
 using Random
+
+MODE = :impact 
+MODE = :no_impact
+
 
 # ## planar push model 
 include("../models/acrobot/model.jl")
-include("../models/acrobot/simulator_impact.jl")
-include("../models/acrobot/simulator_no_impact.jl")
-
 path = @get_scratch!("acrobot")
-@load joinpath(path, "impact.jld2") r_func rz_func rθ_func rz_array rθ_array
-@load joinpath(path, "no_impact.jld2") r_no_impact_func rz_no_impact_func rθ_no_impact_func rz_no_impact_array rθ_no_impact_array
 
 # ## visualization 
 include("../models/acrobot/visuals.jl")
@@ -20,12 +19,20 @@ render(vis)
 h = 0.05
 T = 101
 
-# ## discrete-time state-space model
-im_dyn = ImplicitDynamics(acrobot, h, eval(r_func), eval(rz_func), eval(rθ_func); 
-    r_tol=1.0e-8, κ_eval_tol=1.0e-4, κ_grad_tol=1.0e-2, no_friction=true) 
+if MODE == :impact 
+	include("../models/acrobot/simulator_impact.jl")
+	@load joinpath(path, "impact.jld2") r_func rz_func rθ_func rz_array rθ_array
 
-# im_dyn = ImplicitDynamics(acrobot_no_impact, h, eval(r_no_impact_func), eval(rz_no_impact_func), eval(rθ_no_impact_func); 
-#     r_tol=1.0e-8, κ_eval_tol=1.0e-4, κ_grad_tol=1.0e-2, no_impact=true, no_friction=true) 
+	# ## discrete-time state-space model
+	im_dyn = ImplicitDynamics(acrobot, h, eval(r_func), eval(rz_func), eval(rθ_func); 
+		r_tol=1.0e-8, κ_eval_tol=1.0e-4, κ_grad_tol=1.0e-3, no_friction=true) 
+else
+	include("../models/acrobot/simulator_no_impact.jl")
+	@load joinpath(path, "no_impact.jld2") r_no_impact_func rz_no_impact_func rθ_no_impact_func rz_no_impact_array rθ_no_impact_array
+	
+	im_dyn = ImplicitDynamics(acrobot_no_impact, h, eval(r_no_impact_func), eval(rz_no_impact_func), eval(rθ_no_impact_func); 
+	    r_tol=1.0e-8, κ_eval_tol=1.0e-4, κ_grad_tol=1.0e-3, no_impact=true, no_friction=true) 
+end
 
 nx = 2 * acrobot.nq
 nu = acrobot.nu 
@@ -40,12 +47,13 @@ ilqr_dyn = IterativeLQR.Dynamics((d, x, u, w) -> f(d, im_dyn, x, u, w),
 # ## model for iLQR
 model = [ilqr_dyn for t = 1:T-1]
 
-q0 = [0.0; 0.0]
+# ## initial and goal states
 q1 = [0.0; 0.0]
+q2 = [0.0; 0.0]
 qT = [π; 0.0]
-q_ref = [π; 0.0]
+q_ref = qT
 
-x1 = [q0; q1]
+x1 = [q1; q2]
 xT = [qT; qT]
 
 # ## objective
@@ -94,8 +102,10 @@ ū = [1.0e-3 * randn(nu) for t = 1:T-1]
 w = [zeros(nw) for t = 1:T-1]
 x̄ = rollout(model, x1, ū)
 q̄ = state_to_configuration(x̄)
+
 RoboDojo.visualize!(vis, acrobot, q̄, Δt=h)
 
+# ## problem 
 prob = problem_data(model, obj, cons)
 initialize_controls!(prob, ū)
 initialize_states!(prob, x̄)

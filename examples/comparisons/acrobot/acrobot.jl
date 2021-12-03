@@ -12,7 +12,7 @@ using LinearAlgebra
 
 # ## load MuJoCo model
 path = joinpath(@__DIR__, "acrobot.xml")
-# path = joinpath(@__DIR__, "acrobot_limits.xml")
+path = joinpath(@__DIR__, "acrobot_limits.xml")
 
 acrobot = MuJoCoModel(path)
 sim = MJSim(acrobot.m, acrobot.d)

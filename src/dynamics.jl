@@ -1,15 +1,18 @@
-struct ImplicitDynamics{T} <: Model{T}
+struct ImplicitDynamics{T,R,RZ,Rθ,M<:RoboDojo.Model{T},P<:RoboDojo.Policy{T},D<:RoboDojo.Disturbances{T}} <: Model{T}
     n::Int
     m::Int
     d::Int
-	eval_sim::Simulator{T} 
-	grad_sim::Simulator{T}
-	f_tmp::Vector{T} 
-	fx_tmp::Matrix{T} 
-	fu_tmp::Matrix{T}
-	q1_idx::Vector{Int} 
-	q2_idx::Vector{Int}
-	u1_idx::Vector{Int}
+	eval_sim::Simulator{T,R,RZ,Rθ,M,P,D}
+	grad_sim::Simulator{T,R,RZ,Rθ,M,P,D}
+	f::Vector{T} 
+	fx::Matrix{T} 
+	fu::Matrix{T}
+	q1::Vector{T} 
+	q2::Vector{T} 
+	v1::Vector{T}
+	idx_q1::Vector{Int} 
+	idx_q2::Vector{Int}
+	idx_u1::Vector{Int}
 end
 
 function ImplicitDynamics(model, h, r_func, rz_func, rθ_func; 
@@ -50,6 +53,9 @@ function ImplicitDynamics(model, h, r_func, rz_func, rθ_func;
 			verbose=false))  
 
 	# set trajectory sizes
+	no_impact && (nc = 0) 
+	no_friction && (nb = 0)
+
 	eval_sim.traj.γ .= [zeros(nc) for t = 1:T] 
 	grad_sim.traj.γ .= [zeros(nc) for t = 1:T] 
 
@@ -70,33 +76,37 @@ function ImplicitDynamics(model, h, r_func, rz_func, rθ_func;
 	grad_sim.grad.∂b1∂q2 .= [zeros(nb, model.nq) for t = 1:T]
 	grad_sim.grad.∂b1∂u1 .= [zeros(nb, model.nu) for t = 1:T]
 
-	if no_impact 
-		eval_sim.traj.γ .= [zeros(0) for t = 1:T]
-		grad_sim.traj.γ .= [zeros(0) for t = 1:T]
+	# if no_impact 
+	# 	eval_sim.traj.γ .= [zeros(0) for t = 1:T]
+	# 	grad_sim.traj.γ .= [zeros(0) for t = 1:T]
 
-		eval_sim.grad.∂γ1∂q1 .= [zeros(0, model.nq) for t = 1:T] 
-    	eval_sim.grad.∂γ1∂q2 .= [zeros(0, model.nq) for t = 1:T]
-    	eval_sim.grad.∂γ1∂u1 .= [zeros(0, model.nu) for t = 1:T]
-		grad_sim.grad.∂γ1∂q1 .= [zeros(0, model.nq) for t = 1:T] 
-    	grad_sim.grad.∂γ1∂q2 .= [zeros(0, model.nq) for t = 1:T]
-    	grad_sim.grad.∂γ1∂u1 .= [zeros(0, model.nu) for t = 1:T]
-	end
+	# 	eval_sim.grad.∂γ1∂q1 .= [zeros(0, model.nq) for t = 1:T] 
+    # 	eval_sim.grad.∂γ1∂q2 .= [zeros(0, model.nq) for t = 1:T]
+    # 	eval_sim.grad.∂γ1∂u1 .= [zeros(0, model.nu) for t = 1:T]
+	# 	grad_sim.grad.∂γ1∂q1 .= [zeros(0, model.nq) for t = 1:T] 
+    # 	grad_sim.grad.∂γ1∂q2 .= [zeros(0, model.nq) for t = 1:T]
+    # 	grad_sim.grad.∂γ1∂u1 .= [zeros(0, model.nu) for t = 1:T]
+	# end
 
-	if no_friction 
-		eval_sim.traj.b .= [zeros(0)]
-		grad_sim.traj.b .= [zeros(0)]
+	# if no_friction 
+	# 	eval_sim.traj.b .= [zeros(0)]
+	# 	grad_sim.traj.b .= [zeros(0)]
 
-		eval_sim.grad.∂b1∂q1 .= [zeros(0, model.nq)] 
-    	eval_sim.grad.∂b1∂q2 .= [zeros(0, model.nq)]
-    	eval_sim.grad.∂b1∂u1 .= [zeros(0, model.nu)]
-		grad_sim.grad.∂b1∂q1 .= [zeros(0, model.nq)] 
-    	grad_sim.grad.∂b1∂q2 .= [zeros(0, model.nq)]
-    	grad_sim.grad.∂b1∂u1 .= [zeros(0, model.nu)]
-	end
+	# 	eval_sim.grad.∂b1∂q1 .= [zeros(0, model.nq)] 
+    # 	eval_sim.grad.∂b1∂q2 .= [zeros(0, model.nq)]
+    # 	eval_sim.grad.∂b1∂u1 .= [zeros(0, model.nu)]
+	# 	grad_sim.grad.∂b1∂q1 .= [zeros(0, model.nq)] 
+    # 	grad_sim.grad.∂b1∂q2 .= [zeros(0, model.nq)]
+    # 	grad_sim.grad.∂b1∂u1 .= [zeros(0, model.nu)]
+	# end
 
-	f_tmp = zeros(nn) 
-	fx_tmp = zeros(nn, n) 
-	fu_tmp = zeros(nn, m) 
+	f = zeros(nn) 
+	fx = zeros(nn, n) 
+	fu = zeros(nn, m) 
+
+	q1 = zeros(model.nq) 
+	q2 = zeros(model.nq) 
+	v1 = zeros(model.nq) 
 
 	idx_q1 = collect(1:model.nq) 
 	idx_q2 = collect(model.nq .+ (1:model.nq)) 
@@ -104,26 +114,46 @@ function ImplicitDynamics(model, h, r_func, rz_func, rθ_func;
 	
 	ImplicitDynamics(n, m, d, 
 		eval_sim, grad_sim, 
-		f_tmp, fx_tmp, fu_tmp,
+		f, fx, fu,
+		q1, q2, v1,
 		idx_q1, idx_q2, idx_u1)
 end
 
 function f(d, model::ImplicitDynamics, x, u, w)
-	nq = model.eval_sim.model.nq
-
 	# q1 = view(x, 1:nq)
 	# q2 = view(x, nq .+ (1:nq))
-	q1 = x[1:nq] 
-	q2 = x[nq .+ (1:nq)]
-	v1 = (q2 - q1) ./ model.eval_sim.h
+	q1 = @views x[model.idx_q1] 
+	q2 = @views x[model.idx_q2]
+	# v1 = (q2 - q1) ./ model.eval_sim.h
+	model.v1 .= q2 
+	model.v1 .-= q1 
+	# model.v1 ./= model.eval_sim.h
 
-	q3 = RoboDojo.step!(model.eval_sim, q2, v1, u, 1)
+	# q3 = RoboDojo.step!(model.eval_sim, q2, v1, u, 1)
 
-	d[1:nq] .= q2 
-	d[nq .+ (1:nq)] .= q3
+	# d[1:nq] .= q2 
+	# d[nq .+ (1:nq)] .= q3
 
 	return d
 end
+
+# a = ones(5)
+# c = ones(5)
+# h = 0.1
+
+# @benchmark $c .= $a
+# @benchmark $c ./= $h
+# im_dyn.eval_sim.h
+# using BenchmarkTools
+# using InteractiveUtils
+# x = x̄[1]
+# u = ū[1]
+# w_ = w[1]
+# d = zeros(nx)
+
+# f(d, im_dyn, x, u, w_)
+# @benchmark f($d, $im_dyn, $x, $u, $w_)
+# @code_warntype f(d, im_dyn, x, u, w_)
 
 function fx(dx, model::ImplicitDynamics, x, u, w)
 	nq = model.grad_sim.model.nq

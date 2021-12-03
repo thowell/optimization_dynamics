@@ -13,7 +13,7 @@ struct PlanarPush{T} <: Model{T}
 	mass_pusher::T
 
     inertia::T
-    μ_surface::T
+    μ_surface::Vector{T}
 	μ_pusher::T
     gravity::T
 
@@ -198,9 +198,6 @@ nf = 3 # number of faces for friction cone pyramid
 nb = (nc - nc_impact) * nf + (nf - 1) * nc_impact
 
 planarpush = PlanarPush(nq, nu, 0, nc,
-			mass_block, mass_pusher, inertia,
-			[μ_surface for i = 1:nc], μ_pusher,
-			gravity,
-			contact_corner_offset,
-			dim_rnd,
-			rnd)
+			mass_block, mass_pusher, 
+			inertia, [μ_surface for i = 1:nc], μ_pusher, gravity,
+			contact_corner_offset)

@@ -3,7 +3,7 @@ using Random
 Random.seed!(1)
 
 # ## planar push model 
-include("../models/planar_push/model_p_norm.jl")
+include("../models/planar_push/model.jl")
 include("../models/planar_push/simulator.jl")
 
 MODE = :translate
