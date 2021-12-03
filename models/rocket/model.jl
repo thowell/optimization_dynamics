@@ -5,8 +5,8 @@ struct Rocket{T} <: Model{T}
       nc::Int
 
       mass::T                               # mass
-      inertia::Diagonal{T, Vector{T}}       # inertia matrix
-      inertia_inv::Diagonal{T, Vector{T}}   # inertia matrix inverse
+      inertia::Diagonal{T,Vector{T}}        # inertia matrix
+      inertia_inv::Diagonal{T,Vector{T}}    # inertia matrix inverse
       gravity::Vector{T}                    # gravity
       length::T                             # length (com to thruster)
 end

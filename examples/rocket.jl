@@ -12,9 +12,11 @@ uu = [5.0; 5.0; 12.5]
 # ## rocket model 
 include("../models/rocket/model.jl")
 include("../models/rocket/simulator.jl")
+include("../models/rocket/dynamics.jl")
 
-# path = @get_scratch!("rocket")
-# @load joinpath(path, "residual.jld2") r_func rz_func rθ_func rz_array rθ_array
+path = @get_scratch!("rocket")
+@load joinpath(path, "residual.jld2") r_func rz_func rθ_func rz_array rθ_array
+@load joinpath(path, "projection.jld2") r_func_proj rz_func_proj rθ_func_proj rz_array_proj rθ_array_proj
 
 # ## visualization 
 include("../models/rocket/visuals.jl")
@@ -26,20 +28,22 @@ render(vis)
 h = 0.05
 T = 61
 
+info = RocketInfo(rocket, uu[3], h, eval(r_func), eval(rz_func), eval(rθ_func), eval(r_func_proj), eval(rz_func_proj), eval(rθ_func_proj))
+
 nx = rocket.nq
 nu = rocket.nu 
 nw = rocket.nw
 
 # ## dynamics for iLQR
 if MODE == :projection
-    ilqr_dyn = IterativeLQR.Dynamics((d, x, u, w) -> f_rocket_proj(d, x, u, w), 
-                        (dx, x, u, w) -> fx_rocket_proj(dx, x, u, w), 
-                        (du, x, u, w) -> fu_rocket_proj(du, x, u, w), 
+    ilqr_dyn = IterativeLQR.Dynamics((d, x, u, w) -> f_rocket_proj(d, info, x, u, w), 
+                        (dx, x, u, w) -> fx_rocket_proj(dx, info, x, u, w), 
+                        (du, x, u, w) -> fu_rocket_proj(du, info, x, u, w), 
                         nx, nx, nu)  
 else
-    ilqr_dyn = IterativeLQR.Dynamics((d, x, u, w) -> f_rocket(d, x, u, w), 
-                    (dx, x, u, w) -> fx_rocket(dx, x, u, w), 
-                    (du, x, u, w) -> fu_rocket(du, x, u, w), 
+    ilqr_dyn = IterativeLQR.Dynamics((d, x, u, w) -> f_rocket(d, info, x, u, w), 
+                    (dx, x, u, w) -> fx_rocket(dx, info, x, u, w), 
+                    (du, x, u, w) -> fu_rocket(du, info, x, u, w), 
                     nx, nx, nu)  
 end
 
@@ -115,7 +119,7 @@ conT = Constraint(terminal_con, nx, 0, idx_ineq=collect(1:4))
 cons = [[cont for t = 1:T-1]..., conT]
 
 # ## rollout
-ū = [zeros(nu) for t = 1:T-1]
+ū = [1.0e-3 * randn(nu) for t = 1:T-1]
 w = [zeros(nw) for t = 1:T-1]
 x̄ = rollout(model, x1, ū)
 visualize!(vis, rocket, x̄, Δt=h)
@@ -128,11 +132,11 @@ initialize_states!(prob, x̄)
 @time IterativeLQR.solve!(prob, 
     linesearch = :armijo,
     α_min=1.0e-5,
-    obj_tol=1.0e-3,
-    grad_tol=1.0e-3,
-    max_iter=50,
+    obj_tol=1.0e-5,
+    grad_tol=1.0e-5,
+    max_iter=100,
     max_al_iter=10,
-    con_tol=0.001,
+    con_tol=0.005,
     ρ_init=1.0, 
     ρ_scale=10.0,
     verbose=true)

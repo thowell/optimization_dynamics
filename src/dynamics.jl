@@ -49,7 +49,7 @@ end
 function ImplicitDynamics(model, h, r_func, rz_func, rθ_func; 
 	T=1, r_tol=1.0e-6, κ_eval_tol=1.0e-6, κ_grad_tol=1.0e-6, 
 	no_impact=false, no_friction=false, 
-	n=2 * model.nq, m=model.nu, d=model.nw, nc=model.nc, nb=model.nc,
+	n=(2 * model.nq), m=model.nu, d=model.nw, nc=model.nc, nb=model.nc,
 	info=nothing) 
 
 	# set trajectory sizes
