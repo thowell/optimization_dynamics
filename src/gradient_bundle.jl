@@ -3,7 +3,7 @@ using Random
 Random.seed!(1)
 
 # ## least squares 
-include("least_squares.jl")
+include("ls.jl")
 
 struct MInfo{T}
     idx_q1::Vector{Int} 
@@ -149,7 +149,7 @@ function fu_gb(du, model::ImplicitDynamics, x, u, w)
 	model.v1 ./= model.eval_sim.h
 	RoboDojo.step!(model.eval_sim, q2, model.v1, u, 1)
     gradient!(model.eval_sim, model.info, q1, q2, u)
-    ∂q3∂u1 = @views model.info.dz[model.idx_q1, model.idx_u1] 
+    ∂q3∂u1 = @views model.info.dz[model.idx_q1, model.info.info.idx_u1] 
 	du[model.idx_q2, :] = ∂q3∂u1
 	return du
 end

@@ -9,6 +9,10 @@ include("../models/planar_push/simulator.jl")
 MODE = :translate
 MODE = :rotate 
 
+# ## gradient bundle
+GB = true 
+include("../src/gradient_bundle.jl")
+
 # ## visualization 
 include("../models/planar_push/visuals.jl")
 include("../models/visualize.jl")
@@ -22,31 +26,24 @@ T = 26
 path = @get_scratch!("planarpush")
 @load joinpath(path, "residual.jld2") r_func rz_func rθ_func rz_array rθ_array
 
-# ## discrete-time state-space model
-im_dyn = ImplicitDynamics(planarpush, h, eval(r_func), eval(rz_func), eval(rθ_func); 
-    r_tol=1.0e-8, κ_eval_tol=1.0e-4, κ_grad_tol=1.0e-2, nc=1, nb=9) 
-
 # # ## discrete-time state-space model
-# gb = GradientBundle(planarpush)
-# gb.ls.η
-# im_dyn = ImplicitDynamics(planarpush, h, eval(r_func), eval(rz_func), eval(rθ_func); 
-#     r_tol=1.0e-8, κ_eval_tol=1.0e-4, κ_grad_tol=1.0e-2, nc=1, nb=9, info=gb) 
-# ilqr_dyn = IterativeLQR.Dynamics((d, x, u, w) -> f(d, im_dyn, x, u, w), 
-# 	(dx, x, u, w) -> fx_gb(dx, im_dyn, x, u, w), 
-# 	(du, x, u, w) -> fu_gb(du, im_dyn, x, u, w), 
-# 	nx, nx, nu) 
+im_dyn = ImplicitDynamics(planarpush, h, eval(r_func), eval(rz_func), eval(rθ_func); 
+    r_tol=1.0e-8, κ_eval_tol=1.0e-4, κ_grad_tol=1.0e-2, nc=1, nb=9, info=(GB ? GradientBundle(planarpush, ϵ=1.0e-4) : nothing)) 
 
 nx = 2 * planarpush.nq
 nu = planarpush.nu 
 nw = planarpush.nw
 
-# # ## dynamics for iLQR
+ilqr_dyn = IterativeLQR.Dynamics((d, x, u, w) -> f(d, im_dyn, x, u, w), 
+	(dx, x, u, w) -> GB ? fx_gb(dx, im_dyn, x, u, w) : fx(dx, im_dyn, x, u, w), 
+	(du, x, u, w) -> GB ? fu_gb(du, im_dyn, x, u, w) : fu(du, im_dyn, x, u, w), 
+	nx, nx, nu) 
+
+# ## dynamics for iLQR
 ilqr_dyn = IterativeLQR.Dynamics((d, x, u, w) -> f(d, im_dyn, x, u, w), 
 					(dx, x, u, w) -> fx(dx, im_dyn, x, u, w), 
 					(du, x, u, w) -> fu(du, im_dyn, x, u, w), 
 					nx, nx, nu)  
-
-
 
 # ## model for iLQR
 model = [ilqr_dyn for t = 1:T-1]
