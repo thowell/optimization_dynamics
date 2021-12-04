@@ -15,6 +15,7 @@ end
 
 RoboDojo.num_var(model::Cartpole) = model.nq
 
+
 RoboDojo.nominal_configuration(model::Cartpole) = zeros(model.nq)
 
 function RoboDojo.indices_optimization(model::Cartpole) 

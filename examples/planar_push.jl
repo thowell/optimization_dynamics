@@ -22,16 +22,19 @@ T = 26
 path = @get_scratch!("planarpush")
 @load joinpath(path, "residual.jld2") r_func rz_func rθ_func rz_array rθ_array
 
-# # ## discrete-time state-space model
-# im_dyn = ImplicitDynamics(planarpush, h, eval(r_func), eval(rz_func), eval(rθ_func); 
-#     r_tol=1.0e-8, κ_eval_tol=1.0e-4, κ_grad_tol=1.0e-2, nc=1, nb=9) 
-
-gb = GradientBundle(planarpush)
-gb.ls.η
-
 # ## discrete-time state-space model
 im_dyn = ImplicitDynamics(planarpush, h, eval(r_func), eval(rz_func), eval(rθ_func); 
-    r_tol=1.0e-8, κ_eval_tol=1.0e-4, κ_grad_tol=1.0e-2, nc=1, nb=9, info=gb) 
+    r_tol=1.0e-8, κ_eval_tol=1.0e-4, κ_grad_tol=1.0e-2, nc=1, nb=9) 
+
+# # ## discrete-time state-space model
+# gb = GradientBundle(planarpush)
+# gb.ls.η
+# im_dyn = ImplicitDynamics(planarpush, h, eval(r_func), eval(rz_func), eval(rθ_func); 
+#     r_tol=1.0e-8, κ_eval_tol=1.0e-4, κ_grad_tol=1.0e-2, nc=1, nb=9, info=gb) 
+# ilqr_dyn = IterativeLQR.Dynamics((d, x, u, w) -> f(d, im_dyn, x, u, w), 
+# 	(dx, x, u, w) -> fx_gb(dx, im_dyn, x, u, w), 
+# 	(du, x, u, w) -> fu_gb(du, im_dyn, x, u, w), 
+# 	nx, nx, nu) 
 
 nx = 2 * planarpush.nq
 nu = planarpush.nu 
@@ -43,10 +46,7 @@ ilqr_dyn = IterativeLQR.Dynamics((d, x, u, w) -> f(d, im_dyn, x, u, w),
 					(du, x, u, w) -> fu(du, im_dyn, x, u, w), 
 					nx, nx, nu)  
 
-ilqr_dyn = IterativeLQR.Dynamics((d, x, u, w) -> f(d, im_dyn, x, u, w), 
-	(dx, x, u, w) -> fx_gb(dx, im_dyn, x, u, w), 
-	(du, x, u, w) -> fu_gb(du, im_dyn, x, u, w), 
-	nx, nx, nu) 
+
 
 # ## model for iLQR
 model = [ilqr_dyn for t = 1:T-1]
@@ -132,38 +132,25 @@ x̄ = rollout(model, x1, ū)
 q̄ = state_to_configuration(x̄)
 visualize!(vis, planarpush, q̄, Δt=h)
 
+# ## problem 
 prob = problem_data(model, obj, cons)
 initialize_controls!(prob, ū)
 initialize_states!(prob, x̄)
 
 # ## solve
 IterativeLQR.solve!(prob, 
+	linesearch = :armijo,
+	α_min=1.0e-5,
+	obj_tol=1.0e-3,
+	grad_tol=1.0e-3,
 	max_iter=10,
-	max_al_iter=1,
+	max_al_iter=10,
+	con_tol=0.005,
+	ρ_init=1.0, 
+	ρ_scale=10.0, 
 	verbose=true)
 
 # ## solution
 x_sol, u_sol = get_trajectory(prob)
 q_sol = state_to_configuration(x_sol)
 visualize!(vis, planarpush, q_sol, Δt=h)
-
-IterativeLQR.model_derivatives!(prob.m_data)
-prob.m_data.model_deriv.fx[1]
-prob.m_data.model_deriv.fx[2]
-prob.m_data.model_deriv.fx[3]
-prob.m_data.model_deriv.fx[T-3]
-prob.m_data.model_deriv.fx[T-2]
-prob.m_data.model_deriv.fx[T-1]
-prob.m_data.model_deriv.fu[T-1]
-
-prob.m_data.x[T-1]
-prob.m_data.u[T-1]
-
-dx = zeros(10, 10)
-du = zeros(10, 2)
-
-fx_gb(dx, im_dyn, prob.m_data.x[T-1], prob.m_data.u[T-1], prob.m_data.w[T-1])
-fu_gb(du, im_dyn, prob.m_data.x[T-1], prob.m_data.u[T-1], prob.m_data.w[T-1])
-
-dx
-du

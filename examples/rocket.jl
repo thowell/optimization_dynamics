@@ -122,21 +122,21 @@ cons = [[cont for t = 1:T-1]..., conT]
 ū = [1.0e-3 * randn(nu) for t = 1:T-1]
 w = [zeros(nw) for t = 1:T-1]
 x̄ = rollout(model, x1, ū)
-visualize!(vis, rocket, x̄, Δt=h)
+RoboDojo.visualize!(vis, rocket, x̄, Δt=h)
 
 prob = problem_data(model, obj, cons)
 initialize_controls!(prob, ū)
 initialize_states!(prob, x̄)
 
 # ## solve
-@time IterativeLQR.solve!(prob, 
+IterativeLQR.solve!(prob, 
     linesearch = :armijo,
     α_min=1.0e-5,
     obj_tol=1.0e-5,
     grad_tol=1.0e-5,
     max_iter=100,
     max_al_iter=10,
-    con_tol=0.005,
+    con_tol=0.001,
     ρ_init=1.0, 
     ρ_scale=10.0,
     verbose=true)

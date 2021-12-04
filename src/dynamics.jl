@@ -14,7 +14,7 @@ struct ImplicitDynamics{T,R,RZ,Rθ,M<:RoboDojo.Model{T},P<:RoboDojo.Policy{T},D<
 end
 
 function get_simulator(model, h, r_func, rz_func, rθ_func; 
-	T=1, r_tol=1.0e-6, κ_eval_tol=1.0e-4, nc=model.nc, nb=model.nc, diff_sol=true)
+	T=1, r_tol=1.0e-8, κ_eval_tol=1.0e-4, nc=model.nc, nb=model.nc, diff_sol=true)
 
 	sim = Simulator(model, T; 
         h=h, 
@@ -38,16 +38,18 @@ function get_simulator(model, h, r_func, rz_func, rθ_func;
 
     sim.grad.∂γ1∂q1 .= [zeros(nc, model.nq) for t = 1:T] 
 	sim.grad.∂γ1∂q2 .= [zeros(nc, model.nq) for t = 1:T]
+	sim.grad.∂γ1∂v1 .= [zeros(nc, model.nq) for t = 1:T]
 	sim.grad.∂γ1∂u1 .= [zeros(nc, model.nu) for t = 1:T]
 	sim.grad.∂b1∂q1 .= [zeros(nb, model.nq) for t = 1:T] 
 	sim.grad.∂b1∂q2 .= [zeros(nb, model.nq) for t = 1:T]
+	sim.grad.∂b1∂v1 .= [zeros(nb, model.nq) for t = 1:T]
 	sim.grad.∂b1∂u1 .= [zeros(nb, model.nu) for t = 1:T]
 	
     return sim
 end
 
 function ImplicitDynamics(model, h, r_func, rz_func, rθ_func; 
-	T=1, r_tol=1.0e-6, κ_eval_tol=1.0e-6, κ_grad_tol=1.0e-6, 
+	T=1, r_tol=1.0e-8, κ_eval_tol=1.0e-6, κ_grad_tol=1.0e-6, 
 	no_impact=false, no_friction=false, 
 	n=(2 * model.nq), m=model.nu, d=model.nw, nc=model.nc, nb=model.nc,
 	info=nothing) 
@@ -91,19 +93,6 @@ function f(d, model::ImplicitDynamics, x, u, w)
 	return d
 end
 
-# using BenchmarkTools
-# using InteractiveUtils
-# x = x̄[1]
-# u = ū[1]
-# w_ = w[1]
-# d = zeros(nx)
-# dx = zeros(nx, nx)
-# du = zeros(nx, nu)
-
-# f(d, im_dyn, x, u, w_)
-# @benchmark f($d, $im_dyn, $x, $u, $w_)
-# @code_warntype f(d, im_dyn, x, u, w_)
-
 function fx(dx, model::ImplicitDynamics, x, u, w)
 	q1 = @views x[model.idx_q1]
 	q2 = @views x[model.idx_q2]
@@ -124,11 +113,6 @@ function fx(dx, model::ImplicitDynamics, x, u, w)
 	return dx
 end
 
-# fx(dx, im_dyn, x, u, w_)
-# @benchmark fx($dx, $im_dyn, $x, $u, $w_)
-# @code_warntype fx(dx, im_dyn, x, u, w_)
-
-
 function fu(du, model::ImplicitDynamics, x, u, w)
 	q1 = @views x[model.idx_q1]
 	q2 = @views x[model.idx_q2]
@@ -138,14 +122,10 @@ function fu(du, model::ImplicitDynamics, x, u, w)
 
 	RoboDojo.step!(model.grad_sim, q2, model.v1, u, 1)
 
-	du[model.idx_q2, :] = model.grad_sim.grad.∂q3∂u1[1]
+	du[model.idx_q2, :] .= model.grad_sim.grad.∂q3∂u1[1]
 
 	return du
 end
-
-# fu(du, im_dyn, x, u, w_)
-# @benchmark fu($du, $im_dyn, $x, $u, $w_)
-# @code_warntype fu(du, im_dyn, x, u, w_)
 
 
 function state_to_configuration(x::Vector{Vector{T}}) where T 
@@ -163,3 +143,24 @@ function state_to_configuration(x::Vector{Vector{T}}) where T
 	
 	return q 
 end
+
+# using BenchmarkTools
+# using InteractiveUtils
+# x = x̄[1]
+# u = ū[1]
+# w_ = w[1]
+# d = zeros(nx)
+# dx = zeros(nx, nx)
+# du = zeros(nx, nu)
+
+# f(d, im_dyn, x, u, w_)
+# @benchmark f($d, $im_dyn, $x, $u, $w_)
+# @code_warntype f(d, im_dyn, x, u, w_)
+
+# fx(dx, im_dyn, x, u, w_)
+# @benchmark fx($dx, $im_dyn, $x, $u, $w_)
+# @code_warntype fx(dx, im_dyn, x, u, w_)
+
+# fu(du, im_dyn, x, u, w_)
+# @benchmark fu($du, $im_dyn, $x, $u, $w_)
+# @code_warntype fu(du, im_dyn, x, u, w_)

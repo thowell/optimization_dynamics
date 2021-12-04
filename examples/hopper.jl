@@ -97,18 +97,6 @@ function f1u(du, model::ImplicitDynamics, x, u, w)
 	return du
 end
 
-# f1u(fu0, im_dyn1, x0, u0, w0)
-# @benchmark f1u($fu0, $im_dyn1, $x0, $u0, $w0)
-
-# f0 = zeros(16)
-# fx0 = zeros(16, 16) 
-# fu0 = zeros(16, 2)
-# x0 = rand(16) 
-# u0 = rand(2)
-# w0 = zeros(0)
-# ft(f0, im_dyn1, x0, u0, w0)
-# @benchmark ft($f0, $im_dynt, $x0, $u0, $w0)
-
 function ft(d, model::ImplicitDynamics, x, u, w)
 
 	θ = @views x[model.info.idx_xθ] 

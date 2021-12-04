@@ -72,7 +72,7 @@ function dynamics_no_friction(model::Cartpole, mass_matrix, dynamics_bias, h, q0
 
     d = 0.5 * h[1] * D1L1 + D2L1 + 0.5 * h[1] * D1L2 - D2L2 # variational integrator (midpoint)
 
-	return d + B_func(model, qm2) * u1[1]
+	return d + B_func(model, qm2) * u1[1] 
 end
 
 function residual(model::Cartpole, z, θ, κ)
@@ -113,7 +113,6 @@ end
 function residual_no_friction(model::Cartpole, z, θ, κ)
     nq = model.nq
     nu = model.nu
-    nc = model.nc
 
     q0 = θ[1:nq]
     q1 = θ[nq .+ (1:nq)]
@@ -123,8 +122,7 @@ function residual_no_friction(model::Cartpole, z, θ, κ)
     q2 = z[1:nq]
 
     return dynamics_no_friction(model, a -> M_func(model, a), (a, b) -> C_func(model, a, b), 
-        h, q0, q1, u1, zeros(model.nw), zeros(nc), q2);
+        h, q0, q1, u1, zeros(model.nw), zeros(0), q2);
 end
 
 cartpole = Cartpole(2, 1, 0, 2, 1.0, 0.2, 0.5, 9.81, [0.1; 0.1])
-cartpole_no_friction = Cartpole(2, 1, 0, 0, 1.0, 0.2, 0.5, 9.81, [0.1; 0.1])
