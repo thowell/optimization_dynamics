@@ -1,6 +1,10 @@
 append!(empty!(LOAD_PATH), Base.DEFAULT_LOAD_PATH)
 using Pkg
 
+# Add iLQR
+Pkg.add(url="https://github.com/thowell/IterativeLQR.jl") # add this way temporarily 
+
+
 ################################################################################
 # Generate notebooks
 # ################################################################################
@@ -44,7 +48,4 @@ include("../models/planar_push/codegen.jl")
 include("../models/rocket/model.jl")
 include("../models/rocket/simulator.jl")
 include("../models/rocket/codegen.jl")
-
-## Add iLQR
-Pkg.add("https://github.com/thowell/IterativeLQR.jl") # add this way temporarily 
 
