@@ -1,4 +1,5 @@
 using OptimizationDynamics
+using IterativeLQR
 using Random
 
 # ## visualization 

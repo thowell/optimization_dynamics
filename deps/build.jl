@@ -45,4 +45,6 @@ include(joinpath(pkgdir, "models/rocket/model.jl"))
 include(joinpath(pkgdir, "models/rocket/simulator.jl"))
 include(joinpath(pkgdir, "models/rocket/codegen.jl"))
 
+## Add iLQR
+Pkg.add("https://github.com/thowell/IterativeLQR.jl") # add this way temporarily 
 
