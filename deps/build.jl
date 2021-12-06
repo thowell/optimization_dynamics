@@ -24,26 +24,26 @@ using Rotations
 import RoboDojo: Model, lagrangian_derivatives, IndicesZ, cone_product
 
 # acrobot 
-include(joinpath(pkgdir, "models/acrobot/model.jl"))
-include(joinpath(pkgdir, "models/acrobot/codegen.jl"))
+include("../models/acrobot/model.jl")
+include("../models/acrobot/codegen.jl") 
 
-# cart-pole 
-include(joinpath(pkgdir, "models/cartpole/model.jl"))
-include(joinpath(pkgdir, "models/cartpole/simulator_friction.jl"))
-include(joinpath(pkgdir, "models/cartpole/simulator_no_friction.jl"))
-include(joinpath(pkgdir, "models/cartpole/codegen.jl"))
+# cartpole
+include("../models/cartpole/model.jl")
+include("../models/cartpole/simulator_friction.jl")
+include("../models/cartpole/simulator_no_friction.jl")
+include("../models/cartpole/codegen.jl")
 
 # hopper from RoboDojo.jl 
 
 # planar push 
-include(joinpath(pkgdir, "models/planar_push/model.jl"))
-include(joinpath(pkgdir, "models/planar_push/simulator.jl"))
-include(joinpath(pkgdir, "models/planar_push/codegen.jl"))
+include("models/planar_push/model.jl")
+include("models/planar_push/simulator.jl")
+include("models/planar_push/codegen.jl")
 
 # rocket
-include(joinpath(pkgdir, "models/rocket/model.jl"))
-include(joinpath(pkgdir, "models/rocket/simulator.jl"))
-include(joinpath(pkgdir, "models/rocket/codegen.jl"))
+include("models/rocket/model.jl")
+include("models/rocket/simulator.jl")
+include("models/rocket/codegen.jl")
 
 ## Add iLQR
 Pkg.add("https://github.com/thowell/IterativeLQR.jl") # add this way temporarily 
