@@ -36,14 +36,14 @@ include("../models/cartpole/codegen.jl")
 # hopper from RoboDojo.jl 
 
 # planar push 
-include("models/planar_push/model.jl")
-include("models/planar_push/simulator.jl")
-include("models/planar_push/codegen.jl")
+include("../models/planar_push/model.jl")
+include("../models/planar_push/simulator.jl")
+include("../models/planar_push/codegen.jl")
 
 # rocket
-include("models/rocket/model.jl")
-include("models/rocket/simulator.jl")
-include("models/rocket/codegen.jl")
+include("../models/rocket/model.jl")
+include("../models/rocket/simulator.jl")
+include("../models/rocket/codegen.jl")
 
 ## Add iLQR
 Pkg.add("https://github.com/thowell/IterativeLQR.jl") # add this way temporarily 
