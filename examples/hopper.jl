@@ -185,17 +185,34 @@ xT = [qT; qT]
 x_ref = [q_ref; q_ref]
 
 # ## objective
+
+# ## gate 
+GATE = 1 
+## GATE = 2 
+## GATE = 3
+
+if GATE == 1 
+	r_cost = 1.0e-1 
+	q_cost = 1.0e-1
+elseif GATE == 2 
+	r_cost = 1.0
+	q_cost = 1.0
+elseif GATE == 3 
+	r_cost = 1.0e-3
+	q_cost = 1.0e-1
+end
+
 function obj1(x, u, w)
 	J = 0.0 
 	J += 0.5 * transpose(x - x_ref) * Diagonal([1.0; 10.0; 1.0; 10.0; 1.0; 10.0; 1.0; 10.0]) * (x - x_ref) 
-	J += 0.5 * transpose(u) * Diagonal([1.0e-1 * ones(hopper.nu); 1.0e-1 * ones(hopper.nq); 1.0e-5 * ones(hopper.nq)]) * u
+	J += 0.5 * transpose(u) * Diagonal([r_cost * ones(hopper.nu); 1.0e-1 * ones(hopper.nq); 1.0e-5 * ones(hopper.nq)]) * u
 	return J
 end
 
 function objt(x, u, w)
 	J = 0.0 
-	J += 0.5 * transpose(x - [x_ref; zeros(2 * hopper.nq)]) * 0.1 * Diagonal([1.0; 10.0; 1.0; 10.0; 1.0; 10.0; 1.0; 10.0; zeros(2 * hopper.nq)]) * (x - [x_ref; zeros(2 * hopper.nq)]) 
-	J += 0.5 * transpose(u) * Diagonal(1.0e-1 * ones(hopper.nu)) * u
+	J += 0.5 * transpose(x - [x_ref; zeros(2 * hopper.nq)]) * q_cost * Diagonal([1.0; 10.0; 1.0; 10.0; 1.0; 10.0; 1.0; 10.0; zeros(2 * hopper.nq)]) * (x - [x_ref; zeros(2 * hopper.nq)]) 
+	J += 0.5 * transpose(u) * Diagonal(r_cost * ones(hopper.nu)) * u
 	return J
 end
 
@@ -261,7 +278,12 @@ initialize_controls!(prob, ū_stand)
 initialize_states!(prob, x̄)
 
 # ## solve
+IterativeLQR.reset!(prob.s_data)
 IterativeLQR.solve!(prob, verbose=true)
+@show prob.s_data.iter[1]
+
+# ## benchmark 
+@benchmark IterativeLQR.solve!($prob, x̄, ū_stand, verbose=false) setup=(x̄=deepcopy(x̄), ū_stand=deepcopy(ū_stand))
 
 # ## solution
 x_sol, u_sol = get_trajectory(prob)

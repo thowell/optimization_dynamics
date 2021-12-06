@@ -28,7 +28,7 @@ path = @get_scratch!("planarpush")
 
 # # ## discrete-time state-space model
 im_dyn = ImplicitDynamics(planarpush, h, eval(r_func), eval(rz_func), eval(rθ_func); 
-    r_tol=1.0e-8, κ_eval_tol=1.0e-4, κ_grad_tol=1.0e-2, nc=1, nb=9, info=(GB ? GradientBundle(planarpush, ϵ=1.0e-4) : nothing)) 
+    r_tol=1.0e-8, κ_eval_tol=1.0e-4, κ_grad_tol=1.0e-2, nc=1, nb=9, info=(GB ? GradientBundle(planarpush, N=50, ϵ=1.0e-4) : nothing)) 
 
 nx = 2 * planarpush.nq
 nu = planarpush.nu 
@@ -38,12 +38,6 @@ ilqr_dyn = IterativeLQR.Dynamics((d, x, u, w) -> f(d, im_dyn, x, u, w),
 	(dx, x, u, w) -> GB ? fx_gb(dx, im_dyn, x, u, w) : fx(dx, im_dyn, x, u, w), 
 	(du, x, u, w) -> GB ? fu_gb(du, im_dyn, x, u, w) : fu(du, im_dyn, x, u, w), 
 	nx, nx, nu) 
-
-# ## dynamics for iLQR
-ilqr_dyn = IterativeLQR.Dynamics((d, x, u, w) -> f(d, im_dyn, x, u, w), 
-					(dx, x, u, w) -> fx(dx, im_dyn, x, u, w), 
-					(du, x, u, w) -> fu(du, im_dyn, x, u, w), 
-					nx, nx, nu)  
 
 # ## model for iLQR
 model = [ilqr_dyn for t = 1:T-1]
@@ -135,6 +129,7 @@ initialize_controls!(prob, ū)
 initialize_states!(prob, x̄)
 
 # ## solve
+IterativeLQR.reset!(prob.s_data)
 IterativeLQR.solve!(prob, 
 	linesearch = :armijo,
 	α_min=1.0e-5,
@@ -146,6 +141,21 @@ IterativeLQR.solve!(prob,
 	ρ_init=1.0, 
 	ρ_scale=10.0, 
 	verbose=true)
+
+@show prob.s_data.iter[1]
+
+# ## benchmark 
+@benchmark IterativeLQR.solve!($prob, x̄, ū,
+	linesearch = :armijo,
+	α_min=1.0e-5,
+	obj_tol=1.0e-3,
+	grad_tol=1.0e-3,
+	max_iter=10,
+	max_al_iter=10,
+	con_tol=0.005,
+	ρ_init=1.0, 
+	ρ_scale=10.0, 
+	verbose=false) setup=(x̄=deepcopy(x̄), ū=deepcopy(ū))
 
 # ## solution
 x_sol, u_sol = get_trajectory(prob)

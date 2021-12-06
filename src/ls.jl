@@ -1,7 +1,3 @@
-using Symbolics
-using BenchmarkTools
-using InteractiveUtils
-
 struct LeastSquares{T}
     N::Int
     fz::Vector{T} 

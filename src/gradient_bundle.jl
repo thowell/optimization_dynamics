@@ -1,10 +1,3 @@
-using Plots
-using Random
-Random.seed!(1)
-
-# ## least squares 
-include("ls.jl")
-
 struct MInfo{T}
     idx_q1::Vector{Int} 
     idx_q2::Vector{Int} 
@@ -30,7 +23,7 @@ struct GradientBundle{T}
     info::MInfo{T}
 end
 
-function GradientBundle(model; ϵ=1.0e-4) 
+function GradientBundle(model; N=100, ϵ=1.0e-4) 
     nx = 2 * model.nq 
     ny = model.nq
     nu = model.nu 
@@ -53,7 +46,6 @@ function GradientBundle(model; ϵ=1.0e-4)
     cθ_func_ls = eval(Symbolics.build_function(cθ, fz, fη, η, θ)[2])
     cθθ_func_ls = eval(Symbolics.build_function(cθθ, fz, fη, η, θ)[2])
 
-    N = 100# 2 * nz
     η = [zeros(nz) for i = 1:N]
 
     for i = 1:N 

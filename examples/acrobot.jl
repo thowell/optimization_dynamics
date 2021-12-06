@@ -4,7 +4,6 @@ using Random
 MODE = :impact 
 MODE = :no_impact
 
-
 # ## planar push model 
 include("../models/acrobot/model.jl")
 path = @get_scratch!("acrobot")
@@ -19,19 +18,24 @@ render(vis)
 h = 0.05
 T = 101
 
+# ## gradient smoothness 
+κ_grad = 1.0e-4
+
 if MODE == :impact 
 	include("../models/acrobot/simulator_impact.jl")
 	@load joinpath(path, "impact.jld2") r_func rz_func rθ_func rz_array rθ_array
 
 	# ## discrete-time state-space model
 	im_dyn = ImplicitDynamics(acrobot, h, eval(r_func), eval(rz_func), eval(rθ_func); 
-		r_tol=1.0e-8, κ_eval_tol=1.0e-4, κ_grad_tol=1.0e-3, no_friction=true) 
+		r_tol=1.0e-8, κ_eval_tol=1.0e-4, 
+		κ_grad_tol=κ_grad, 
+		no_friction=true) 
 else
 	include("../models/acrobot/simulator_no_impact.jl")
 	@load joinpath(path, "no_impact.jld2") r_no_impact_func rz_no_impact_func rθ_no_impact_func rz_no_impact_array rθ_no_impact_array
 	
 	im_dyn = ImplicitDynamics(acrobot_no_impact, h, eval(r_no_impact_func), eval(rz_no_impact_func), eval(rθ_no_impact_func); 
-	    r_tol=1.0e-8, κ_eval_tol=1.0e-4, κ_grad_tol=1.0e-3, no_impact=true, no_friction=true) 
+	    r_tol=1.0e-8, κ_eval_tol=1.0, κ_grad_tol=1.0, no_impact=true, no_friction=true) 
 end
 
 nx = 2 * acrobot.nq
@@ -111,6 +115,7 @@ initialize_controls!(prob, ū)
 initialize_states!(prob, x̄)
 
 # ## solve
+IterativeLQR.reset!(prob.s_data)
 IterativeLQR.solve!(prob, 
 	linesearch = :armijo,
     α_min=1.0e-5,
@@ -123,7 +128,10 @@ IterativeLQR.solve!(prob,
     ρ_scale=5.0,
 	verbose=true)
 
-@benchmark IterativeLQR.solve!(prob, x̄, ū,
+@show prob.s_data.iter[1]
+
+# ## benchmark
+@benchmark IterativeLQR.solve!($prob, x̄, ū,
 	linesearch = :armijo,
     α_min=1.0e-5,
     obj_tol=1.0e-3,
@@ -133,7 +141,7 @@ IterativeLQR.solve!(prob,
     con_tol=0.001,
     ρ_init=1.0, 
     ρ_scale=10.0,
-	verbose=false) setup=(x̄=x̄), ū=deepcopy(ū))
+	verbose=false) setup=(x̄=deepcopy(x̄), ū=deepcopy(ū))
 
 # ## solution
 x_sol, u_sol = get_trajectory(prob)

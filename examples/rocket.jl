@@ -5,9 +5,8 @@ Random.seed!(1)
 MODE = :projection 
 MODE = :nominal
 
-# ## thrust constraints
-ul = [-5.0; -5.0; 0.0]
-uu = [5.0; 5.0; 12.5]
+# ## thrust max
+u_max = 12.5 
 
 # ## rocket model 
 include("../models/rocket/model.jl")
@@ -28,7 +27,7 @@ render(vis)
 h = 0.05
 T = 61
 
-info = RocketInfo(rocket, uu[3], h, eval(r_func), eval(rz_func), eval(rθ_func), eval(r_func_proj), eval(rz_func_proj), eval(rθ_func_proj))
+info = RocketInfo(rocket, u_max, h, eval(r_func), eval(rz_func), eval(rθ_func), eval(r_func_proj), eval(rz_func_proj), eval(rθ_func_proj))
 
 nx = rocket.nq
 nu = rocket.nu 
@@ -90,18 +89,18 @@ obj = [[ct for t = 1:T-1]..., cT]
 x_con = [-0.5; 0.5]
 y_con = [-0.75; 0.75]
 
-if MODE == :projection 
-    idx_thrust = collect(1:0) 
-else 
-    idx_thrust = collect(3:3) 
-end 
-
 function stage_con(x, u, w) 
-    [
-    (ul - u)[idx_thrust]; # control limit (lower)
-    (u - uu)[idx_thrust]; # control limit (upper)
-    rocket.length - x[3] 
-    ]
+    if MODE == :projection 
+        [
+         rocket.length - x[3]; 
+        ]
+    else 
+        [
+         0.0 - u[3]; # control limit (lower)
+         u[3] - u_max; # control limit (upper)
+         rocket.length - x[3];
+        ]
+    end
 end 
 
 function terminal_con(x, u, w) 
@@ -114,7 +113,7 @@ function terminal_con(x, u, w)
     ]
 end
 
-cont = Constraint(stage_con, nx, nu, idx_ineq=collect(1:(1 + 2 * length(idx_thrust))))
+cont = Constraint(stage_con, nx, nu, idx_ineq=collect(1:(1 + (MODE == :projection ? 0 : 2))))
 conT = Constraint(terminal_con, nx, 0, idx_ineq=collect(1:4))
 cons = [[cont for t = 1:T-1]..., conT]
 
@@ -129,6 +128,7 @@ initialize_controls!(prob, ū)
 initialize_states!(prob, x̄)
 
 # ## solve
+IterativeLQR.reset!(prob.s_data)
 IterativeLQR.solve!(prob, 
     linesearch = :armijo,
     α_min=1.0e-5,
@@ -140,6 +140,20 @@ IterativeLQR.solve!(prob,
     ρ_init=1.0, 
     ρ_scale=10.0,
     verbose=true)
+@show prob.s_data.iter[1]
+
+# ## benchmark 
+@benchmark IterativeLQR.solve!($prob, x̄, ū,
+    linesearch = :armijo,
+    α_min=1.0e-5,
+    obj_tol=1.0e-5,
+    grad_tol=1.0e-5,
+    max_iter=100,
+    max_al_iter=10,
+    con_tol=0.001,
+    ρ_init=1.0, 
+    ρ_scale=10.0,
+    verbose=false) setup=(x̄=deepcopy(x̄), ū=deepcopy(ū))
 
 # ## solution
 x_sol, u_sol = get_trajectory(prob)
@@ -147,3 +161,4 @@ visualize!(vis, rocket, x_sol, Δt=h)
 
 # ## test thrust cone constraint
 all([norm(u[1:2]) <= u[3] for u in u_sol])
+

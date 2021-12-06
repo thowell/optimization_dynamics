@@ -1,6 +1,7 @@
 module optimization_dynamics
 
 using LinearAlgebra 
+using BenchmarkTools
 using Symbolics 
 using IfElse
 using JLD2
@@ -16,6 +17,8 @@ import RoboDojo: LinearSolver, LUSolver, Model, ResidualMethods, Space, Disturba
 using Scratch 
 
 include("dynamics.jl")
+include("ls.jl")
+include("gradient_bundle.jl")
 
 export Model
 

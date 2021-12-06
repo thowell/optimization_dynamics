@@ -151,19 +151,35 @@ xM = [qM; qM]
 xT = [qT; qT]
 x_ref = [q_ref; q_ref]
 
+# ## gate 
+# GATE = 1 
+# GATE = 2 
+GATE = 3
+
+if GATE == 1 
+	r_cost = 1.0e-1 
+	q_cost = 1.0e-1
+elseif GATE == 2 
+	r_cost = 1.0
+	q_cost = 1.0
+elseif GATE == 3 
+	r_cost = 1.0e-3
+	q_cost = 1.0e-1
+end
+
 # ## objective
 function obj1(x, u, w)
 	J = 0.0 
 	J += 0.5 * transpose(x - x_ref) * Diagonal([1.0; 10.0; 1.0; 10.0; 1.0; 10.0; 1.0; 10.0]) * (x - x_ref) 
-	J += 0.5 * transpose(u) * Diagonal(1.0e-1 * ones(nu)) * u
+	J += 0.5 * transpose(u) * Diagonal(r_cost * ones(nu)) * u
     J += 1000.0 * u[nu]
 	return J
 end
 
 function objt(x, u, w)
 	J = 0.0 
-	J += 0.5 * transpose(x[1:nx] - x_ref) * Diagonal([1.0; 10.0; 1.0; 10.0; 1.0; 10.0; 1.0; 10.0]) * (x[1:nx] - x_ref)
-	J += 0.5 * transpose(u) * Diagonal(1.0e-1 * ones(nu)) * u
+	J += 0.5 * transpose(x[1:nx] - x_ref) * Diagonal(q_cost * [1.0; 10.0; 1.0; 10.0; 1.0; 10.0; 1.0; 10.0]) * (x[1:nx] - x_ref)
+	J += 0.5 * transpose(u) * Diagonal(r_cost * ones(nu)) * u
     J += 1000.0 * u[nu]
 	return J
 end
@@ -237,7 +253,7 @@ s = Solver(trajopt, options=Options(
 
 # ## initialize
 x_interpolation = [x1, [[x1; x1] for t = 2:T]...]
-u_guess = [[0.0; RoboDojo.hopper.gravity * RoboDojo.hopper.mass_body * 0.5 * h[1]; 0.0 * rand(nu - 2)] for t = 1:T-1]
+u_guess = [[0.0; RoboDojo.hopper.gravity * RoboDojo.hopper.mass_body * 0.5 * h[1]; 1.0e-4 * rand(nu - 2)] for t = 1:T-1] # may need to run more than once
 z0 = zeros(s.p.num_var)
 for (t, idx) in enumerate(s.p.trajopt.model.idx.x)
     z0[idx] = x_interpolation[t]
@@ -248,7 +264,16 @@ end
 initialize!(s, z0)
 
 # ## solve
-@time DirectTrajectoryOptimization.solve!(s)
+DirectTrajectoryOptimization.solve!(s)
+
+# ## benchmark 
+s.solver.options["print_level"] = 0
+function solve(s, z) 
+    initialize!(s, z) 
+    DirectTrajectoryOptimization.solve!(s)
+end
+
+@benchmark solve($s, $z0)
 
 # ## solution
 @show trajopt.x[1]
