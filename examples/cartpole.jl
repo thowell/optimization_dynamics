@@ -27,10 +27,10 @@ if MODE == :friction
 	# ## discrete-time state-space model
 	im_dyn = ImplicitDynamics(cartpole, h, eval(r_func), eval(rz_func), eval(rθ_func); 
 		r_tol=1.0e-8, κ_eval_tol=1.0e-4, κ_grad_tol=1.0e-3, no_impact=true) 
-	cartpole.friction .= 0.15
-	# cartpole.friction .= 0.1
-	# cartpole.friction .= 0.05
-	# cartpole.friction .= 0.01 
+        cartpole.friction .= [0.35; 0.35]
+        # cartpole.friction .= [0.25; 0.25]
+        # cartpole.friction .= [0.1; 0.1]
+        # cartpole.friction .= [0.01; 0.01]
 else
 	include("../models/cartpole/simulator_no_friction.jl")
 	@load joinpath(path, "no_friction.jld2") r_no_friction_func rz_no_friction_func rθ_no_friction_func rz_no_friction_array rθ_no_friction_array
@@ -64,23 +64,29 @@ xT = [qT; qT]
 function objt(x, u, w)
 	J = 0.0 
 
-	q1 = x[1:cartpole.nq] 
-	q2 = x[cartpole.nq .+ (1:cartpole.nq)] 
-	v1 = (q2 - q1) ./ h
+        # V = 1.0 * Diagonal(ones(cartpole.nq))
+        # Q_velocity = [V -V; -V V] ./ h[1]^2.0
+        # Q_track = 1.0 * Diagonal(ones(2 * cartpole.nq))
 
-	J += transpose(v1) * v1 
-	J += transpose(x - xT) * (x - xT) 
+	# q1 = x[1:cartpole.nq] 
+	# q2 = x[cartpole.nq .+ (1:cartpole.nq)] 
+	# v1 = (q2 - q1) ./ h
+
+	# J += transpose(v1) * v1 
+	# J += 0.001 * transpose(x - xT) * (x - xT) 
+        # J += transpose(x) * Q_velocity * x
+        # J += transpose(x) * Q_track * x
+        # J += -2.0 * transpose(xT) * Q_track * x
+
 	J += transpose(u) * u
 
 	return J
 end
 
 function objT(x, u, w)
-	J = 0.0 
-	
-	J += transpose(x - xT) * (x - xT) 
-
-	return J
+        J = 0.0 
+        J += transpose(x - xT) * (x - xT) 
+        return J
 end
 
 ct = IterativeLQR.Cost(objt, nx, nu, nw)
@@ -99,7 +105,7 @@ conT = Constraint(terminal_con, nx, 0)
 cons = [[cont for t = 1:T-1]..., conT]
 
 # ## rollout
-ū = [(t == 1 ? -1.0 : 0.0) * ones(nu) for t = 1:T-1]
+ū = [(t == 1 ? -2.0 : 0.0) * ones(nu) for t = 1:T-1]
 w = [zeros(nw) for t = 1:T-1]
 x̄ = rollout(model, x1, ū)
 q̄ = state_to_configuration(x̄)
@@ -130,7 +136,7 @@ IterativeLQR.solve!(prob,
 	linesearch = :armijo,
     α_min=1.0e-5,
     obj_tol=1.0e-5,
-    grad_tol=1.0e-5,
+    grad_tol=1.0e-3,
     max_iter=100,
     max_al_iter=10,
     con_tol=0.005,

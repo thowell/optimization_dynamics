@@ -83,9 +83,9 @@ function residual(model::Cartpole, z, θ, κ)
     q0 = θ[1:nq]
     q1 = θ[nq .+ (1:nq)]
     u1 = θ[2nq .+ (1:nu)]
-    h = θ[2nq + nu .+ (1:1)]
-    μ_slider = θ[2nq + nu + 1 .+ (1:1)]
-    μ_angle = θ[2nq + nu + 1 + 1 .+ (1:1)]
+    μ_slider = θ[2nq + nu .+ (1:1)]
+    μ_angle = θ[2nq + nu + 1 .+ (1:1)]
+    h = θ[2nq + nu + 1 + 1 .+ (1:1)]
 
     q2 = z[1:nq]
     ψ = z[nq .+ (1:nc)]
