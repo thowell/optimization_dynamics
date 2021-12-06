@@ -7,6 +7,12 @@ From the Julia REPL, type `]` to enter the Pkg REPL mode and run:
 ```julia
 pkg> add https://github.com/thowell/OptimizationDynamics.jl
 ```
+This will install and build the package. 
+
+[Notebooks](examples/README.md) can be run for the following examples:
+
+## planar push
+<img src="animations/planar_push_rotate.gif" alt="drawing" width="400"/> 
 
 ## acrobot with joint limits
 <img src="animations/acrobot_joint_limits.gif" alt="drawing" width="400"/>
@@ -20,7 +26,5 @@ pkg> add https://github.com/thowell/OptimizationDynamics.jl
 ## rocket with thrust limits
 <img src="animations/starship_bellyflop_landing.gif" alt="drawing" width="400"/>
 
-## planar push
-<img src="animations/planar_push_rotate.gif" alt="drawing" width="400"/> 
-
+Additional comparisons with [MuJoCo](examples/comparisons/acrobot) and [contact-implicit trajectory optimization](examples/comparisons/hopper.jl) are available.
 
