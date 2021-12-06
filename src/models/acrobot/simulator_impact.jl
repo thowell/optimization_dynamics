@@ -19,7 +19,7 @@ function RoboDojo.indices_optimization(model::DoublePendulum)
     nq = model.nq
     nc = model.nc
     nz = nq + 2 * nc
-    IndicesOptimization(
+    RoboDojo.IndicesOptimization(
         nz, 
         nz, 
         [collect(nq .+ (1:2)), collect(nq + 2 .+ (1:2))],
@@ -33,7 +33,7 @@ function RoboDojo.indices_optimization(model::DoublePendulum)
         collect(nq + nc .+ (1:nc)))
 end
 
-function RoboDojo.initialize_z!(z, model::DoublePendulum, idx::IndicesZ, q)
+function RoboDojo.initialize_z!(z, model::DoublePendulum, idx::RoboDojo.IndicesZ, q)
     z[idx.q] .= q
     z[idx.γ] .= 1.0
     z[idx.sγ] .= 1.0

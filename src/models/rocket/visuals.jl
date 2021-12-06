@@ -1,4 +1,4 @@
-function RoboDojo.visualize!(vis, p::Rocket, q; 
+function visualize!(vis, p::Rocket, q; 
 	Δt=0.1, mesh=false, T_off=length(q))
 	default_background!(vis)
 

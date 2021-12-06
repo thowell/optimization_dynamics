@@ -5,7 +5,7 @@ This repository contains the implementation and examples from our paper: [Trajec
 ## Installation
 From the Julia REPL, type `]` to enter the Pkg REPL mode and run:
 ```julia
-pkg> add https://github.com/thowell/OptimizationDynamics.jl
+pkg> add https://github.com/thowell/optimization_dynamics
 ```
 This will install and build the package. 
 

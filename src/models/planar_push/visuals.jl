@@ -26,7 +26,7 @@ function _set_planar_push!(vis, model::PlanarPush, q;
     settransform!(vis["pusher_$i"], Translation(q[4], q[5], 0.01 * i))
 end
 
-function RoboDojo.visualize!(vis, model::PlanarPush, q;
+function visualize!(vis, model::PlanarPush, q;
         i = 1,
         r = 0.1,
         r_pusher = 0.025,

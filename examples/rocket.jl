@@ -3,10 +3,7 @@ using IterativeLQR
 using Random
 Random.seed!(1)
 
-
 # ## visualization 
-include("../models/rocket/visuals.jl")
-include("../models/visualize.jl")
 vis = Visualizer() 
 render(vis)
 
@@ -18,12 +15,8 @@ MODE = :nominal
 u_max = 12.5 
 
 # ## rocket model 
-include("../models/rocket/model.jl")
-include("../models/rocket/simulator.jl")
-include("../models/rocket/dynamics.jl")
-path = @get_scratch!("rocket")
-@load joinpath(path, "residual.jld2") r_func rz_func rθ_func rz_array rθ_array
-@load joinpath(path, "projection.jld2") r_func_proj rz_func_proj rθ_func_proj rz_array_proj rθ_array_proj
+@load joinpath(path_rocket, "residual.jld2") r_func rz_func rθ_func rz_array rθ_array
+@load joinpath(path_rocket, "projection.jld2") r_func_proj rz_func_proj rθ_func_proj rz_array_proj rθ_array_proj
 
 # ## state-space model
 h = 0.05
@@ -121,7 +114,7 @@ cons = [[cont for t = 1:T-1]..., conT]
 ū = [1.0e-3 * randn(nu) for t = 1:T-1]
 w = [zeros(nw) for t = 1:T-1]
 x̄ = rollout(model, x1, ū)
-RoboDojo.visualize!(vis, rocket, x̄, Δt=h)
+visualize!(vis, rocket, x̄, Δt=h)
 
 # ## problem 
 prob = problem_data(model, obj, cons)

@@ -4,10 +4,9 @@ using Pkg
 # Add iLQR
 Pkg.add(url="https://github.com/thowell/IterativeLQR.jl") # add this way temporarily 
 
-
 ################################################################################
 # Generate notebooks
-# ################################################################################
+################################################################################
 exampledir = joinpath(@__DIR__, "..", "examples")
 Pkg.activate(exampledir)
 Pkg.instantiate()
@@ -28,24 +27,24 @@ using Rotations
 import RoboDojo: Model, lagrangian_derivatives, IndicesZ, cone_product
 
 # acrobot 
-include("../models/acrobot/model.jl")
-include("../models/acrobot/codegen.jl") 
+include("../src/models/acrobot/model.jl")
+include("../src/models/acrobot/codegen.jl") 
 
 # cartpole
-include("../models/cartpole/model.jl")
-include("../models/cartpole/simulator_friction.jl")
-include("../models/cartpole/simulator_no_friction.jl")
-include("../models/cartpole/codegen.jl")
+include("../src/models/cartpole/model.jl")
+include("../src/models/cartpole/simulator_friction.jl")
+include("../src/models/cartpole/simulator_no_friction.jl")
+include("../src/models/cartpole/codegen.jl")
 
 # hopper from RoboDojo.jl 
 
 # planar push 
-include("../models/planar_push/model.jl")
-include("../models/planar_push/simulator.jl")
-include("../models/planar_push/codegen.jl")
+include("../src/models/planar_push/model.jl")
+include("../src/models/planar_push/simulator.jl")
+include("../src/models/planar_push/codegen.jl")
 
 # rocket
-include("../models/rocket/model.jl")
-include("../models/rocket/simulator.jl")
-include("../models/rocket/codegen.jl")
+include("../src/models/rocket/model.jl")
+include("../src/models/rocket/simulator.jl")
+include("../src/models/rocket/codegen.jl")
 

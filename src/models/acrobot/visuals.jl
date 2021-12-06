@@ -1,5 +1,5 @@
 # visualization
-function RoboDojo.visualize!(vis, model::DoublePendulum, x;
+function visualize!(vis, model::DoublePendulum, x;
         color=Colors.RGBA(0.0, 0.0, 0.0, 1.0),
         r = 0.1, Δt = 0.1)
     default_background!(vis)

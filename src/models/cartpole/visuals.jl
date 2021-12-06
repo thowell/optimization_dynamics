@@ -35,7 +35,7 @@ function _set_cartpole!(vis, model, x;
     settransform!(vis["ee_$i"], Translation([px; 0.0; pz]))
 end
 
-function RoboDojo.visualize!(vis, model, q;
+function visualize!(vis, model, q;
         i = 0,
         tl = 1.0,
         Δt = 0.1,

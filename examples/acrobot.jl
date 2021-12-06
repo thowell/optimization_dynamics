@@ -3,14 +3,8 @@ using IterativeLQR
 using Random
 
 # ## visualization 
-include("../models/acrobot/visuals.jl")
-include("../models/visualize.jl")
 vis = Visualizer() 
 render(vis)
-
-# ## acrobot model 
-include("../models/acrobot/model.jl")
-path = @get_scratch!("acrobot")
 
 # ## mode
 MODE = :impact 
@@ -19,18 +13,19 @@ MODE = :no_impact
 # ## state-space model
 h = 0.05
 T = 101
-κ_grad = 1.0e-4 # gradient smoothness 
+κ_grad = 1.0e-3 # gradient smoothness 
+include("../src/models/acrobot/simulator_impact.jl")
 
 if MODE == :impact 
-	include("../models/acrobot/simulator_impact.jl")
-	@load joinpath(path, "impact.jld2") r_func rz_func rθ_func rz_array rθ_array
+	include("../src/models/acrobot/simulator_impact.jl")
+	@load joinpath(@get_scratch!("acrobot"), "impact.jld2") r_func rz_func rθ_func rz_array rθ_array
 	im_dyn = ImplicitDynamics(acrobot, h, eval(r_func), eval(rz_func), eval(rθ_func); 
 		r_tol=1.0e-8, κ_eval_tol=1.0e-4, 
 		κ_grad_tol=κ_grad, 
 		no_friction=true) 
 else
-	include("../models/acrobot/simulator_no_impact.jl")
-	@load joinpath(path, "no_impact.jld2") r_no_impact_func rz_no_impact_func rθ_no_impact_func rz_no_impact_array rθ_no_impact_array
+	include("../src/models/acrobot/simulator_no_impact.jl")
+	@load joinpath(@get_scratch!("acrobot"), "no_impact.jld2") r_no_impact_func rz_no_impact_func rθ_no_impact_func rz_no_impact_array rθ_no_impact_array
 	im_dyn = ImplicitDynamics(acrobot_no_impact, h, eval(r_no_impact_func), eval(rz_no_impact_func), eval(rθ_no_impact_func); 
 	    r_tol=1.0e-8, κ_eval_tol=1.0, κ_grad_tol=1.0, no_impact=true, no_friction=true) 
 end
@@ -97,11 +92,12 @@ conT = Constraint(terminal_con, nx, 0)
 cons = [[cont for t = 1:T-1]..., conT]
 
 # ## rollout
+Random.seed!(1)
 ū = [1.0e-3 * randn(nu) for t = 1:T-1]
 w = [zeros(nw) for t = 1:T-1]
 x̄ = rollout(model, x1, ū)
 q̄ = state_to_configuration(x̄)
-RoboDojo.visualize!(vis, acrobot, q̄, Δt=h)
+visualize!(vis, acrobot, q̄, Δt=h)
 
 # ## problem 
 prob = problem_data(model, obj, cons)
@@ -116,26 +112,30 @@ IterativeLQR.solve!(prob,
     obj_tol=1.0e-5,
     grad_tol=1.0e-5,
     max_iter=50,
-    max_al_iter=10,
-    con_tol=0.005,
+    max_al_iter=20,
+    con_tol=0.001,
     ρ_init=1.0, 
-    ρ_scale=5.0,
+    ρ_scale=10.0,
 	verbose=true)
-@show prob.s_data.iter[1]
 
+@show prob.s_data.iter[1]
+@show IterativeLQR.eval_obj(prob.m_data.obj.costs, prob.m_data.x, prob.m_data.u, prob.m_data.w)
+@show norm(terminal_con(prob.m_data.x[T], zeros(0), zeros(0)), Inf)
+@show prob.s_data.obj[1] # augmented Lagrangian cost
+	
 # ## solution
 x_sol, u_sol = get_trajectory(prob)
 q_sol = state_to_configuration(x_sol)
-RoboDojo.visualize!(vis, acrobot, q_sol, Δt=h)
+visualize!(vis, acrobot, q_sol, Δt=h)
 
 # ## benchmark
 @benchmark IterativeLQR.solve!($prob, x̄, ū,
 	linesearch = :armijo,
     α_min=1.0e-5,
-    obj_tol=1.0e-3,
-    grad_tol=1.0e-3,
+    obj_tol=1.0e-5,
+    grad_tol=1.0e-5,
     max_iter=50,
-    max_al_iter=10,
+    max_al_iter=20,
     con_tol=0.001,
     ρ_init=1.0, 
     ρ_scale=10.0,

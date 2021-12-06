@@ -186,9 +186,6 @@ function residual(model, z, θ, κ)
     ]
 end
 
-num_var(model::PlanarPush) = model.nq + 2 * 1 + 2 * 14
-friction_coefficients(model::PlanarPush{T}) where T = T[]  
-
 # Dimensions
 nq = 5 # configuration dimension
 nu = 2 # control dimension
