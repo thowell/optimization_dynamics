@@ -9,6 +9,7 @@ using FiniteDiff
 
 using IterativeLQR
 using LinearAlgebra
+using Random
 
 # ## load MuJoCo model
 path = joinpath(@__DIR__, "acrobot.xml")
@@ -66,6 +67,7 @@ conT = Constraint(goal, nx, 0)
 cons = [[cont for t = 1:T-1]..., conT] 
 
 # # rollout
+Random.seed!(1)
 ū = [1.0e-3 * randn(acrobot_mujoco.nu) for t = 1:T-1]
 w = [zeros(0) for t = 1:T-1]
 x̄ = rollout(model, x1, ū)
@@ -84,19 +86,22 @@ IterativeLQR.solve!(prob,
     grad_tol=1.0e-5,
     max_iter=50,
     max_al_iter=10,
-    con_tol=0.005,
+    con_tol=0.001,
     ρ_init=1.0, 
-    ρ_scale=5.0,
+    ρ_scale=10.0,
 	verbose=true)
 
 @show prob.s_data.iter[1]
+@show IterativeLQR.eval_obj(prob.m_data.obj.costs, prob.m_data.x, prob.m_data.u, prob.m_data.w)
+@show norm(goal(prob.m_data.x[T], zeros(0), zeros(0)), Inf)
+@show prob.s_data.obj[1] # augmented Lagrangian cost
 
 # ## benchmark
 @benchmark IterativeLQR.solve!($prob, x̄, ū,
 	linesearch = :armijo,
     α_min=1.0e-5,
-    obj_tol=1.0e-3,
-    grad_tol=1.0e-3,
+    obj_tol=1.0e-5,
+    grad_tol=1.0e-5,
     max_iter=50,
     max_al_iter=10,
     con_tol=0.001,
