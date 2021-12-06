@@ -1,12 +1,5 @@
-using optimization_dynamics
+using OptimizationDynamics
 using Random
-
-MODE = :impact 
-MODE = :no_impact
-
-# ## planar push model 
-include("../models/acrobot/model.jl")
-path = @get_scratch!("acrobot")
 
 # ## visualization 
 include("../models/acrobot/visuals.jl")
@@ -14,18 +7,22 @@ include("../models/visualize.jl")
 vis = Visualizer() 
 render(vis)
 
-# ## build implicit dynamics
+# ## acrobot model 
+include("../models/acrobot/model.jl")
+path = @get_scratch!("acrobot")
+
+# ## mode
+MODE = :impact 
+MODE = :no_impact
+
+# ## state-space model
 h = 0.05
 T = 101
-
-# ## gradient smoothness 
-κ_grad = 1.0e-4
+κ_grad = 1.0e-4 # gradient smoothness 
 
 if MODE == :impact 
 	include("../models/acrobot/simulator_impact.jl")
 	@load joinpath(path, "impact.jld2") r_func rz_func rθ_func rz_array rθ_array
-
-	# ## discrete-time state-space model
 	im_dyn = ImplicitDynamics(acrobot, h, eval(r_func), eval(rz_func), eval(rθ_func); 
 		r_tol=1.0e-8, κ_eval_tol=1.0e-4, 
 		κ_grad_tol=κ_grad, 
@@ -33,7 +30,6 @@ if MODE == :impact
 else
 	include("../models/acrobot/simulator_no_impact.jl")
 	@load joinpath(path, "no_impact.jld2") r_no_impact_func rz_no_impact_func rθ_no_impact_func rz_no_impact_array rθ_no_impact_array
-	
 	im_dyn = ImplicitDynamics(acrobot_no_impact, h, eval(r_no_impact_func), eval(rz_no_impact_func), eval(rθ_no_impact_func); 
 	    r_tol=1.0e-8, κ_eval_tol=1.0, κ_grad_tol=1.0, no_impact=true, no_friction=true) 
 end
@@ -42,13 +38,11 @@ nx = 2 * acrobot.nq
 nu = acrobot.nu 
 nw = acrobot.nw
 
-# ## dynamics for iLQR
+# ## iLQR model
 ilqr_dyn = IterativeLQR.Dynamics((d, x, u, w) -> f(d, im_dyn, x, u, w), 
 					(dx, x, u, w) -> fx(dx, im_dyn, x, u, w), 
 					(du, x, u, w) -> fu(du, im_dyn, x, u, w), 
 					nx, nx, nu)  
-
-# ## model for iLQR
 model = [ilqr_dyn for t = 1:T-1]
 
 # ## initial and goal states
@@ -106,7 +100,6 @@ ū = [1.0e-3 * randn(nu) for t = 1:T-1]
 w = [zeros(nw) for t = 1:T-1]
 x̄ = rollout(model, x1, ū)
 q̄ = state_to_configuration(x̄)
-
 RoboDojo.visualize!(vis, acrobot, q̄, Δt=h)
 
 # ## problem 
@@ -127,8 +120,12 @@ IterativeLQR.solve!(prob,
     ρ_init=1.0, 
     ρ_scale=5.0,
 	verbose=true)
-
 @show prob.s_data.iter[1]
+
+# ## solution
+x_sol, u_sol = get_trajectory(prob)
+q_sol = state_to_configuration(x_sol)
+RoboDojo.visualize!(vis, acrobot, q_sol, Δt=h)
 
 # ## benchmark
 @benchmark IterativeLQR.solve!($prob, x̄, ū,
@@ -143,7 +140,3 @@ IterativeLQR.solve!(prob,
     ρ_scale=10.0,
 	verbose=false) setup=(x̄=deepcopy(x̄), ū=deepcopy(ū))
 
-# ## solution
-x_sol, u_sol = get_trajectory(prob)
-q_sol = state_to_configuration(x_sol)
-RoboDojo.visualize!(vis, acrobot, q_sol, Δt=h)

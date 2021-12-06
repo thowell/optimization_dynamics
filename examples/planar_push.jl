@@ -1,17 +1,6 @@
-using Plots
+using OptimizationDynamics
 using Random
 Random.seed!(1)
-
-# ## planar push model 
-include("../models/planar_push/model.jl")
-include("../models/planar_push/simulator.jl")
-
-MODE = :translate
-MODE = :rotate 
-
-# ## gradient bundle
-GB = true 
-include("../src/gradient_bundle.jl")
 
 # ## visualization 
 include("../models/planar_push/visuals.jl")
@@ -19,14 +8,24 @@ include("../models/visualize.jl")
 vis = Visualizer() 
 render(vis)
 
-# ## build implicit dynamics
+# ## planar push model 
+include("../models/planar_push/model.jl")
+include("../models/planar_push/simulator.jl")
+
+# ## mode
+MODE = :translate
+MODE = :rotate 
+
+# ## gradient bundle
+GB = true 
+include("../src/gradient_bundle.jl")
+
+# ## state-space model
 h = 0.1
 T = 26
-
 path = @get_scratch!("planarpush")
 @load joinpath(path, "residual.jld2") r_func rz_func rθ_func rz_array rθ_array
 
-# # ## discrete-time state-space model
 im_dyn = ImplicitDynamics(planarpush, h, eval(r_func), eval(rz_func), eval(rθ_func); 
     r_tol=1.0e-8, κ_eval_tol=1.0e-4, κ_grad_tol=1.0e-2, nc=1, nb=9, info=(GB ? GradientBundle(planarpush, N=50, ϵ=1.0e-4) : nothing)) 
 
@@ -34,13 +33,13 @@ nx = 2 * planarpush.nq
 nu = planarpush.nu 
 nw = planarpush.nw
 
+# ## iLQR model
 ilqr_dyn = IterativeLQR.Dynamics((d, x, u, w) -> f(d, im_dyn, x, u, w), 
 	(dx, x, u, w) -> GB ? fx_gb(dx, im_dyn, x, u, w) : fx(dx, im_dyn, x, u, w), 
 	(du, x, u, w) -> GB ? fu_gb(du, im_dyn, x, u, w) : fu(du, im_dyn, x, u, w), 
 	nx, nx, nu) 
 
-# ## model for iLQR
-model = [ilqr_dyn for t = 1:T-1]
+	model = [ilqr_dyn for t = 1:T-1]
 
 # ## initial conditions and goal
 if MODE == :translate 
@@ -144,6 +143,11 @@ IterativeLQR.solve!(prob,
 
 @show prob.s_data.iter[1]
 
+# ## solution
+x_sol, u_sol = get_trajectory(prob)
+q_sol = state_to_configuration(x_sol)
+visualize!(vis, planarpush, q_sol, Δt=h)
+
 # ## benchmark 
 @benchmark IterativeLQR.solve!($prob, x̄, ū,
 	linesearch = :armijo,
@@ -156,8 +160,3 @@ IterativeLQR.solve!(prob,
 	ρ_init=1.0, 
 	ρ_scale=10.0, 
 	verbose=false) setup=(x̄=deepcopy(x̄), ū=deepcopy(ū))
-
-# ## solution
-x_sol, u_sol = get_trajectory(prob)
-q_sol = state_to_configuration(x_sol)
-visualize!(vis, planarpush, q_sol, Δt=h)

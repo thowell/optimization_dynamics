@@ -23,7 +23,7 @@ end
 # Kinematics
 r_dim = 0.1
 
-function sd_2d_box(p, pose, dim, rnd)
+function sd_2d_box(p, pose)
 	x, y, θ = pose
 	Δ = rotation_matrix(-θ) * (p - pose[1:2])
 	s = 10
@@ -46,9 +46,9 @@ mass_block = 1.0   # mass
 mass_pusher = 10.0
 inertia = 1.0 / 12.0 * mass_block * ((2.0 * r_dim)^2 + (2.0 * r_dim)^2)
 
-rnd = 0.01
-dim = [r_dim, r_dim]
-dim_rnd = [r_dim - rnd, r_dim - rnd]
+# rnd = 0.01
+# dim = [r_dim, r_dim]
+# dim_rnd = [r_dim - rnd, r_dim - rnd]
 
 # Methods
 M_func(model::PlanarPush, q) = Diagonal([model.mass_block, model.mass_block,
@@ -66,7 +66,7 @@ function ϕ_func(model::PlanarPush, q)
     p_block = q[1:3]
 	p_pusher = q[4:5]
 
-	sdf = sd_2d_box(p_pusher, p_block, model.block_dim, model.block_rnd)
+	sdf = sd_2d_box(p_pusher, p_block)
 
     [sdf]
 end

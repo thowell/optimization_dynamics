@@ -1,7 +1,15 @@
-using Plots
+using OptimizationDynamics
 using Random
 Random.seed!(1)
 
+
+# ## visualization 
+include("../models/rocket/visuals.jl")
+include("../models/visualize.jl")
+vis = Visualizer() 
+render(vis)
+
+# ## mode
 MODE = :projection 
 MODE = :nominal
 
@@ -12,28 +20,20 @@ u_max = 12.5
 include("../models/rocket/model.jl")
 include("../models/rocket/simulator.jl")
 include("../models/rocket/dynamics.jl")
-
 path = @get_scratch!("rocket")
 @load joinpath(path, "residual.jld2") r_func rz_func rθ_func rz_array rθ_array
 @load joinpath(path, "projection.jld2") r_func_proj rz_func_proj rθ_func_proj rz_array_proj rθ_array_proj
 
-# ## visualization 
-include("../models/rocket/visuals.jl")
-include("../models/visualize.jl")
-vis = Visualizer() 
-render(vis)
-
-# ## build implicit dynamics
+# ## state-space model
 h = 0.05
 T = 61
-
 info = RocketInfo(rocket, u_max, h, eval(r_func), eval(rz_func), eval(rθ_func), eval(r_func_proj), eval(rz_func_proj), eval(rθ_func_proj))
 
 nx = rocket.nq
 nu = rocket.nu 
 nw = rocket.nw
 
-# ## dynamics for iLQR
+# ## iLQR model
 if MODE == :projection
     ilqr_dyn = IterativeLQR.Dynamics((d, x, u, w) -> f_rocket_proj(d, info, x, u, w), 
                         (dx, x, u, w) -> fx_rocket_proj(dx, info, x, u, w), 
@@ -46,7 +46,6 @@ else
                     nx, nx, nu)  
 end
 
-# ## model for iLQR
 model = [ilqr_dyn for t = 1:T-1]
 
 # ## initial conditions
@@ -123,6 +122,7 @@ w = [zeros(nw) for t = 1:T-1]
 x̄ = rollout(model, x1, ū)
 RoboDojo.visualize!(vis, rocket, x̄, Δt=h)
 
+# ## problem 
 prob = problem_data(model, obj, cons)
 initialize_controls!(prob, ū)
 initialize_states!(prob, x̄)
@@ -142,6 +142,13 @@ IterativeLQR.solve!(prob,
     verbose=true)
 @show prob.s_data.iter[1]
 
+# ## solution
+x_sol, u_sol = get_trajectory(prob)
+visualize!(vis, rocket, x_sol, Δt=h)
+
+# ## test thrust cone constraint
+all([norm(u[1:2]) <= u[3] for u in u_sol])
+
 # ## benchmark 
 @benchmark IterativeLQR.solve!($prob, x̄, ū,
     linesearch = :armijo,
@@ -154,11 +161,4 @@ IterativeLQR.solve!(prob,
     ρ_init=1.0, 
     ρ_scale=10.0,
     verbose=false) setup=(x̄=deepcopy(x̄), ū=deepcopy(ū))
-
-# ## solution
-x_sol, u_sol = get_trajectory(prob)
-visualize!(vis, rocket, x_sol, Δt=h)
-
-# ## test thrust cone constraint
-all([norm(u[1:2]) <= u[3] for u in u_sol])
 

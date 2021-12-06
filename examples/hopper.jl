@@ -1,4 +1,4 @@
-using Plots
+using OptimizationDynamics
 using Random
 Random.seed!(1)
 
@@ -6,10 +6,9 @@ Random.seed!(1)
 vis = Visualizer() 
 render(vis)
 
-# ## build implicit dynamics
+# ## state-space model
 T = 21
 h = 0.05
-
 hopper = RoboDojo.hopper
 
 struct ParameterOptInfo{T}
@@ -117,7 +116,6 @@ function ft(d, model::ImplicitDynamics, x, u, w)
 	return d
 end
 
-
 function ftx(dx, model::ImplicitDynamics, x, u, w)
 	nq = model.grad_sim.model.nq
 
@@ -161,6 +159,7 @@ function ftu(du, model::ImplicitDynamics, x, u, w)
 	return du
 end
 
+# ## iLQR model
 ilqr_dyn1 = IterativeLQR.Dynamics((d, x, u, w) -> f1(d, im_dyn1, x, u, w), 
 					(dx, x, u, w) -> f1x(dx, im_dyn1, x, u, w), 
 					(du, x, u, w) -> f1u(du, im_dyn1, x, u, w), 
@@ -186,7 +185,6 @@ x_ref = [q_ref; q_ref]
 
 # ## objective
 
-# ## gate 
 GATE = 1 
 ## GATE = 2 
 ## GATE = 3
@@ -273,6 +271,7 @@ x̄ = rollout(model, x1, ū_stand)
 q̄ = state_to_configuration(x̄)
 RoboDojo.visualize!(vis, hopper, x̄, Δt=h)
 
+# ## problem
 prob = problem_data(model, obj, cons)
 initialize_controls!(prob, ū_stand)
 initialize_states!(prob, x̄)
@@ -282,11 +281,12 @@ IterativeLQR.reset!(prob.s_data)
 IterativeLQR.solve!(prob, verbose=true)
 @show prob.s_data.iter[1]
 
-# ## benchmark 
-@benchmark IterativeLQR.solve!($prob, x̄, ū_stand, verbose=false) setup=(x̄=deepcopy(x̄), ū_stand=deepcopy(ū_stand))
-
 # ## solution
 x_sol, u_sol = get_trajectory(prob)
 q_sol = state_to_configuration(x_sol)
 RoboDojo.visualize!(vis, hopper, q_sol, Δt=h)
+
+# ## benchmark 
+@benchmark IterativeLQR.solve!($prob, x̄, ū_stand, verbose=false) setup=(x̄=deepcopy(x̄), ū_stand=deepcopy(ū_stand))
+
 

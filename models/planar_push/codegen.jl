@@ -10,7 +10,7 @@ nθ = 2 * planarpush.nq + planarpush.nu + planarpush.nw + 1
 @variables κ[1:1]
 
 # Residual
-r = residual_full(planarpush, z, θ, κ)
+r = residual(planarpush, z, θ, κ)
 rz = Symbolics.jacobian(r, z)
 rθ = Symbolics.jacobian(r, θ)
 

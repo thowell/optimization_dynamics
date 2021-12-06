@@ -1,4 +1,3 @@
-
 nq = cartpole.nq
 nu = cartpole.nu
 nc = cartpole.nc

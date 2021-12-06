@@ -1,4 +1,4 @@
-module optimization_dynamics
+module OptimizationDynamics
 
 using LinearAlgebra 
 using BenchmarkTools

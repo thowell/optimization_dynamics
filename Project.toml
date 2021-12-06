@@ -1,4 +1,4 @@
-name = "optimization_dynamics"
+name = "OptimizationDynamics"
 uuid = "b76b7f0e-3267-49b4-a6cd-c01948ce091d"
 authors = ["thowell <thowell@stanford.edu>"]
 version = "0.1.0"
