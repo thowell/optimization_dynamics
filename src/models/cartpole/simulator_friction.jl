@@ -1,6 +1,6 @@
-friction_coefficients(model::Cartpole) = model.friction
+friction_coefficients(model::Cartpole{T,Friction}) where T = model.friction
 
-function RoboDojo.indices_z(model::Cartpole) 
+function RoboDojo.indices_z(model::Cartpole{T,Friction}) where T 
     nq = model.nq 
     nc = model.nc
     q = collect(1:nq) 
@@ -13,11 +13,9 @@ function RoboDojo.indices_z(model::Cartpole)
     IndicesZ(q, γ, sγ, ψ, b, sψ, sb)
 end
 
-RoboDojo.num_var(model::Cartpole) = model.nq + 4 * model.nc
+RoboDojo.num_var(model::Cartpole{T,Friction}) where T = model.nq + 4 * model.nc
 
-RoboDojo.nominal_configuration(model::Cartpole) = zeros(model.nq)
-
-function RoboDojo.indices_optimization(model::Cartpole) 
+function RoboDojo.indices_optimization(model::Cartpole{T,Friction}) where T 
     nq = model.nq
     nc = model.nc
     nz = nq + 4 * nc
@@ -35,10 +33,12 @@ function RoboDojo.indices_optimization(model::Cartpole)
         collect(nq + 2 * nc .+ (1:(2 * nc))))
 end
 
-function RoboDojo.initialize_z!(z, model::Cartpole, idx::IndicesZ, q)
+function RoboDojo.initialize_z!(z, model::Cartpole{T,Friction}, idx::IndicesZ, q) where T
     z[idx.q] .= q
     z[idx.ψ] .= 1.0
     z[idx.b] .= 0.1
     z[idx.sψ] .= 1.0
     z[idx.sb] .= 0.1
 end
+
+RoboDojo.nominal_configuration(model::Cartpole) = zeros(model.nq)

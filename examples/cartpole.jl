@@ -4,33 +4,27 @@ using Random
 Random.seed!(1)
 
 # ## visualization 
-include("../src/models/cartpole/visuals.jl")
-include("../src/models/visualize.jl")
 vis = Visualizer() 
 render(vis)
 
 # ## mode
 MODE = :friction 
-MODE = :no_friction
+MODE = :frictionless
 
 # ## state-space model
 h = 0.05
 T = 51
 
 if MODE == :friction 
-	include("../src/models/cartpole/simulator_friction.jl")
-	@load joinpath(@get_scratch!("cartpole"), "friction.jld2") r_func rz_func rθ_func rz_array rθ_array
-	im_dyn = ImplicitDynamics(cartpole, h, eval(r_func), eval(rz_func), eval(rθ_func); 
+	im_dyn = ImplicitDynamics(cartpole, h, eval(r_cartpole_friction_func), eval(rz_cartpole_friction_func), eval(rθ_cartpole_friction_func); 
 		r_tol=1.0e-8, κ_eval_tol=1.0e-4, κ_grad_tol=1.0e-3, no_impact=true) 
         cartpole.friction .= [0.35; 0.35]
         ## cartpole.friction .= [0.25; 0.25]
         ## cartpole.friction .= [0.1; 0.1]
         ## cartpole.friction .= [0.01; 0.01]
 else
-	include("../src/models/cartpole/simulator_no_friction.jl")
-	@load joinpath(@get_scratch!("cartpole"), "no_friction.jld2") r_no_friction_func rz_no_friction_func rθ_no_friction_func rz_no_friction_array rθ_no_friction_array
-	im_dyn = ImplicitDynamics(cartpole, h, eval(r_no_friction_func), eval(rz_no_friction_func), eval(rθ_no_friction_func); 
-    	        r_tol=1.0e-8, κ_eval_tol=1.0, κ_grad_tol=1.0, no_impact=true, no_friction=true) 
+	im_dyn = ImplicitDynamics(cartpole, h, eval(r_cartpole_frictionless_func), eval(rz_cartpole_frictionless_func), eval(rθ_cartpole_frictionless_func); 
+    	        r_tol=1.0e-8, κ_eval_tol=1.0, κ_grad_tol=1.0, no_impact=true, frictionless=true) 
 end
 
 nx = 2 * cartpole.nq
@@ -96,16 +90,16 @@ initialize_states!(prob, x̄)
 # ## solve
 IterativeLQR.reset!(prob.s_data)
 IterativeLQR.solve!(prob, 
-	linesearch = :armijo,
-    α_min=1.0e-5,
-    obj_tol=1.0e-5,
-    grad_tol=1.0e-3,
-    max_iter=100,
-    max_al_iter=20,
-    con_tol=0.005,
-    ρ_init=1.0, 
-    ρ_scale=10.0, 
-	verbose=true)
+        linesearch = :armijo,
+        α_min=1.0e-5,
+        obj_tol=1.0e-5,
+        grad_tol=1.0e-3,
+        max_iter=100,
+        max_al_iter=20,
+        con_tol=0.005,
+        ρ_init=1.0, 
+        ρ_scale=10.0, 
+        verbose=true)
 
 @show IterativeLQR.eval_obj(prob.m_data.obj.costs, prob.m_data.x, prob.m_data.u, prob.m_data.w)
 @show prob.s_data.iter[1]

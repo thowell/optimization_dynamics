@@ -188,7 +188,7 @@ x_ref = [q_ref; q_ref]
 
 GATE = 1 
 ## GATE = 2 
-## GATE = 3
+GATE = 3
 
 if GATE == 1 
 	r_cost = 1.0e-1 
@@ -279,15 +279,39 @@ initialize_states!(prob, x̄)
 
 # ## solve
 IterativeLQR.reset!(prob.s_data)
-IterativeLQR.solve!(prob, verbose=true)
-@show prob.s_data.iter[1]
+@time IterativeLQR.solve!(prob, 
+	linesearch = :armijo,
+	α_min=1.0e-5,
+	obj_tol=1.0e-3,
+	grad_tol=1.0e-3,
+	max_iter=10,
+	max_al_iter=15,
+	con_tol=0.001,
+	ρ_init=1.0, 
+	ρ_scale=10.0, 
+	verbose=false)
 
+@show IterativeLQR.eval_obj(prob.m_data.obj.costs, prob.m_data.x, prob.m_data.u, prob.m_data.w)
+@show prob.s_data.iter[1]
+@show norm(terminal_con(prob.m_data.x[T], zeros(0), zeros(0))[3:4], Inf)
+@show prob.s_data.obj[1] # augmented Lagrangian cost
+    
 # ## solution
 x_sol, u_sol = get_trajectory(prob)
 q_sol = state_to_configuration(x_sol)
 RoboDojo.visualize!(vis, hopper, q_sol, Δt=h)
 
-# ## benchmark 
-@benchmark IterativeLQR.solve!($prob, x̄, ū_stand, verbose=false) setup=(x̄=deepcopy(x̄), ū_stand=deepcopy(ū_stand))
+## benchmark (NOTE: gate 3 seems to break @benchmark, just run @time instead...)
+@benchmark IterativeLQR.solve!($prob, $x̄, $ū_stand, 
+	linesearch = :armijo,
+	α_min=1.0e-5,
+	obj_tol=1.0e-3,
+	grad_tol=1.0e-3,
+	max_iter=10,
+	max_al_iter=15,
+	con_tol=0.001,
+	ρ_init=1.0, 
+	ρ_scale=10.0, 
+	verbose=false)
 
 

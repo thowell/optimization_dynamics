@@ -1,4 +1,4 @@
-function RoboDojo.indices_z(model::DoublePendulum) 
+function RoboDojo.indices_z(model::DoublePendulum{T,Impact}) where T 
     nq = model.nq 
     nc = model.nc
     q = collect(1:nq) 
@@ -11,11 +11,9 @@ function RoboDojo.indices_z(model::DoublePendulum)
     IndicesZ(q, γ, sγ, ψ, b, sψ, sb)
 end
 
-RoboDojo.num_var(model::DoublePendulum) = model.nq + 2 * model.nc
+RoboDojo.num_var(model::DoublePendulum{T,Impact}) where T = model.nq + 2 * model.nc
 
-RoboDojo.nominal_configuration(model::DoublePendulum) = zeros(model.nq)
-
-function RoboDojo.indices_optimization(model::DoublePendulum) 
+function RoboDojo.indices_optimization(model::DoublePendulum{T,Impact}) where T 
     nq = model.nq
     nc = model.nc
     nz = nq + 2 * nc
@@ -33,10 +31,11 @@ function RoboDojo.indices_optimization(model::DoublePendulum)
         collect(nq + nc .+ (1:nc)))
 end
 
-function RoboDojo.initialize_z!(z, model::DoublePendulum, idx::RoboDojo.IndicesZ, q)
+function RoboDojo.initialize_z!(z, model::DoublePendulum{T,Impact}, idx::RoboDojo.IndicesZ, q) where T
     z[idx.q] .= q
     z[idx.γ] .= 1.0
     z[idx.sγ] .= 1.0
 end
 
+RoboDojo.nominal_configuration(model::DoublePendulum) = zeros(model.nq)
 friction_coefficients(model::DoublePendulum{T}) where T = T[]

@@ -1,8 +1,10 @@
 """
     Double pendulum
 """
+struct Impact end 
+struct Nominal end
 
-struct DoublePendulum{T} <: Model{T}
+struct DoublePendulum{T,X} <: Model{T}
     nq::Int 
     nu::Int 
     nw::Int 
@@ -81,13 +83,11 @@ function ϕ_func(model, q)
 end
 
 function P_func(model, q)
-    # ϕ(z) = ϕ_func(model, z)
-    # ForwardDiff.jacobian(ϕ, q)
     ϕ = ϕ_func(model, q) 
     Symbolics.jacobian(ϕ, q)
 end
 
-function dynamics(model::DoublePendulum, mass_matrix, dynamics_bias, h, q0, q1, u1, w1, λ1, q2)
+function dynamics(model::DoublePendulum{T,Impact}, mass_matrix, dynamics_bias, h, q0, q1, u1, w1, λ1, q2) where T
 	# evalutate at midpoint
 	qm1 = 0.5 * (q0 + q1)
     vm1 = (q1 - q0) / h[1]
@@ -103,7 +103,7 @@ function dynamics(model::DoublePendulum, mass_matrix, dynamics_bias, h, q0, q1, 
         - h[1] * 0.5 .* vm2) # damping
 end
 
-function dynamics_no_impact(model::DoublePendulum, mass_matrix, dynamics_bias, h, q0, q1, u1, w1, λ1, q2)
+function dynamics(model::DoublePendulum{T,Nominal}, mass_matrix, dynamics_bias, h, q0, q1, u1, w1, λ1, q2) where T
 	# evalutate at midpoint
 	qm1 = 0.5 * (q0 + q1)
     vm1 = (q1 - q0) / h[1]
@@ -118,7 +118,7 @@ function dynamics_no_impact(model::DoublePendulum, mass_matrix, dynamics_bias, h
         - h[1] * 0.5 .* vm2) # damping
 end
 
-function residual(model::DoublePendulum, z, θ, κ)
+function residual(model::DoublePendulum{T,Impact}, z, θ, κ) where T
     nq = model.nq
     nu = model.nu
     nc = model.nc
@@ -141,7 +141,7 @@ function residual(model::DoublePendulum, z, θ, κ)
 
 end
 
-function residual_no_impact(model::DoublePendulum, z, θ, κ)
+function residual(model::DoublePendulum{T,Nominal}, z, θ, κ) where T
     nq = model.nq
     nu = model.nu
     nc = model.nc
@@ -152,13 +152,13 @@ function residual_no_impact(model::DoublePendulum, z, θ, κ)
     h = θ[2nq + nu .+ (1:1)]
 
     q2 = z[1:nq]
-    return dynamics_no_impact(model, a -> M_func(model, a), (a, b) -> C_func(model, a, b),
+    return dynamics(model, a -> M_func(model, a), (a, b) -> C_func(model, a, b),
         h, q0, q1, u1, zeros(model.nw), zeros(model.nc), q2)
 end
 
-acrobot = DoublePendulum(2, 1, 0, 2,
+acrobot_impact = DoublePendulum{Float64,Impact}(2, 1, 0, 2,
     1.0, 0.333, 1.0, 0.5, 1.0, 0.333, 1.0, 0.5, 9.81, 0.0, 0.0)
 
-acrobot_no_impact = DoublePendulum(2, 1, 0, 0,
+acrobot_nominal = DoublePendulum{Float64,Impact}(2, 1, 0, 0,
     1.0, 0.333, 1.0, 0.5, 1.0, 0.333, 1.0, 0.5, 9.81, 0.0, 0.0)
 

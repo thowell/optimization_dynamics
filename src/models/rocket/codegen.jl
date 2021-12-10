@@ -1,3 +1,5 @@
+path = @get_scratch!("rocket")
+
 # rocket
 nx = rocket.nq
 nu = rocket.nu 
@@ -19,30 +21,28 @@ function residual(rocket, z, θ, κ)
     return y - (x + h[1] * f(rocket, 0.5 * (x + y), u, w)) 
 end
 
-r = residual(rocket, z, θ, κ)
-r = Symbolics.simplify.(r)
-rz = Symbolics.jacobian(r, z, simplify=true)
-rθ = Symbolics.jacobian(r, θ, simplify=true)
+r_rocket = residual(rocket, z, θ, κ)
+r_rocket = Symbolics.simplify.(r_rocket)
+rz_rocket = Symbolics.jacobian(r_rocket, z, simplify=true)
+rθ_rocket = Symbolics.jacobian(r_rocket, θ, simplify=true)
 
 # Build function
-r_func = build_function(r, z, θ, κ)[2]
-rz_func = build_function(rz, z, θ)[2]
-rθ_func = build_function(rθ, z, θ)[2]
+r__rocketfunc = build_function(r_rocket, z, θ, κ)[2]
+rz__rocketfunc = build_function(rz_rocket, z, θ)[2]
+rθ__rocketfunc = build_function(rθ_rocket, z, θ)[2]
 
-rz_array = similar(rz, Float64)
-rθ_array = similar(rθ, Float64)
+rz_rocket_array = similar(rz_rocket, Float64)
+rθ_rocket_array = similar(rθ_rocket, Float64)
 
-path = @get_scratch!("rocket")
-
-@save joinpath(path, "residual.jld2") r_func rz_func rθ_func rz_array rθ_array
-@load joinpath(path, "residual.jld2") r_func rz_func rθ_func rz_array rθ_array
+@save joinpath(path, "residual.jld2") r_rocket_func rz_rocket_func rθ_rocket_func rz_rocket_array rθ_rocket_array
+@load joinpath(path, "residual.jld2") r_rocket_func rz_rocket_func rθ_rocket_func rz_rocket_array rθ_rocket_array
 
 
 # projection
 nz = 3 + 1 + 1 + 1 + 1 + 3
 nθ = 3 + 1
 
-function residual(z, θ, κ)
+function residual_projection(z, θ, κ)
     u = z[1:3]
     p = z[4:4]
     s = z[5:5]
@@ -65,19 +65,19 @@ end
 
 @variables z[1:nz], θ[1:nθ], κ[1:1]
 
-r = residual(z, θ, κ)
-r .= simplify(r)
-r_func_proj = Symbolics.build_function(r, z, θ, κ)[2]
+r_proj = residual_projection(z, θ, κ)
+r_proj .= simplify(r_proj)
+r_proj_func = Symbolics.build_function(r_proj, z, θ, κ)[2]
 
-rz = Symbolics.jacobian(r, z)
-rz = simplify.(rz)
-rz_func_proj = Symbolics.build_function(rz, z, θ)[2]
-rθ = Symbolics.jacobian(r, θ)
-rθ = simplify.(rθ)
-rθ_func_proj = Symbolics.build_function(rθ, z, θ)[2]
+rz_proj = Symbolics.jacobian(r_proj, z)
+rz_proj = simplify.(rz_proj)
+rz_proj_func = Symbolics.build_function(rz_proj, z, θ)[2]
+rθ_proj = Symbolics.jacobian(r_proj, θ)
+rθ_proj = simplify.(rθ_proj)
+rθ_proj_func = Symbolics.build_function(rθ_proj, z, θ)[2]
 
-rz_array_proj = similar(rz, Float64)
-rθ_array_proj = similar(rθ, Float64)
+rz_proj_array = similar(rz_proj, Float64)
+rθ_proj_array = similar(rθ_proj, Float64)
 
-@save joinpath(path, "projection.jld2") r_func_proj rz_func_proj rθ_func_proj rz_array_proj rθ_array_proj
-@load joinpath(path, "projection.jld2") r_func_proj rz_func_proj rθ_func_proj rz_array_proj rθ_array_proj
+@save joinpath(path, "projection.jld2") r_proj_func rz_proj_func rθ_proj_func rz_proj_array rθ_proj_array
+@load joinpath(path, "projection.jld2") r_proj_func rz_proj_func rθ_proj_func rz_proj_array rθ_proj_array

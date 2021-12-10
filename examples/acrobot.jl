@@ -8,26 +8,21 @@ render(vis)
 
 # ## mode
 MODE = :impact 
-MODE = :no_impact
+MODE = :nominal
 
 # ## state-space model
 h = 0.05
 T = 101
 κ_grad = 1.0e-3 # gradient smoothness 
-include("../src/models/acrobot/simulator_impact.jl")
 
 if MODE == :impact 
-	include("../src/models/acrobot/simulator_impact.jl")
-	@load joinpath(@get_scratch!("acrobot"), "impact.jld2") r_func rz_func rθ_func rz_array rθ_array
-	im_dyn = ImplicitDynamics(acrobot, h, eval(r_func), eval(rz_func), eval(rθ_func); 
+	im_dyn = ImplicitDynamics(acrobot_impact, h, eval(r_acrobot_impact_func), eval(rz_acrobot_impact_func), eval(rθ_acrobot_impact_func); 
 		r_tol=1.0e-8, κ_eval_tol=1.0e-4, 
 		κ_grad_tol=κ_grad, 
 		no_friction=true) 
 else
-	include("../src/models/acrobot/simulator_no_impact.jl")
-	@load joinpath(@get_scratch!("acrobot"), "no_impact.jld2") r_no_impact_func rz_no_impact_func rθ_no_impact_func rz_no_impact_array rθ_no_impact_array
-	im_dyn = ImplicitDynamics(acrobot_no_impact, h, eval(r_no_impact_func), eval(rz_no_impact_func), eval(rθ_no_impact_func); 
-	    r_tol=1.0e-8, κ_eval_tol=1.0, κ_grad_tol=1.0, no_impact=true, no_friction=true) 
+	im_dyn = ImplicitDynamics(acrobot_nominal, h, eval(r_acrobot_nominal_func), eval(rz_acrobot_nominal_func), eval(rθ_acrobot_nominal_func); 
+	    r_tol=1.0e-8, κ_eval_tol=1.0, κ_grad_tol=1.0, nominal=true, no_friction=true) 
 end
 
 nx = 2 * acrobot.nq

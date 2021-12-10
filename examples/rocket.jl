@@ -14,14 +14,12 @@ MODE = :nominal
 # ## thrust max
 u_max = 12.5 
 
-# ## rocket model 
-@load joinpath(path_rocket, "residual.jld2") r_func rz_func rθ_func rz_array rθ_array
-@load joinpath(path_rocket, "projection.jld2") r_func_proj rz_func_proj rθ_func_proj rz_array_proj rθ_array_proj
-
 # ## state-space model
 h = 0.05
 T = 61
-info = RocketInfo(rocket, u_max, h, eval(r_func), eval(rz_func), eval(rθ_func), eval(r_func_proj), eval(rz_func_proj), eval(rθ_func_proj))
+info = RocketInfo(rocket, u_max, h, 
+    eval(r_rocket_func), eval(rz_rocket_func), eval(rθ_rocket_func), 
+    eval(r_proj_func), eval(rz_proj_func), eval(rθ_proj_func))
 
 nx = rocket.nq
 nu = rocket.nu 

@@ -4,8 +4,6 @@ using Random
 Random.seed!(1)
 
 # ## visualization 
-include("../src/models/planar_push/visuals.jl")
-include("../src/models/visualize.jl")
 vis = Visualizer() 
 render(vis)
 
@@ -21,8 +19,7 @@ include("../src/gradient_bundle.jl")
 h = 0.1
 T = 26
 
-@load joinpath(@get_scratch!("planarpush"), "residual.jld2") r_func rz_func rθ_func rz_array rθ_array
-im_dyn = ImplicitDynamics(planarpush, h, eval(r_func), eval(rz_func), eval(rθ_func); 
+im_dyn = ImplicitDynamics(planarpush, h, eval(r_pp_func), eval(rz_pp_func), eval(rθ_pp_func); 
     r_tol=1.0e-8, κ_eval_tol=1.0e-4, κ_grad_tol=1.0e-2, nc=1, nb=9, info=(GB ? GradientBundle(planarpush, N=50, ϵ=1.0e-4) : nothing)) 
 
 nx = 2 * planarpush.nq

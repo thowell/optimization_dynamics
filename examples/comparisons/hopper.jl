@@ -152,9 +152,9 @@ xT = [qT; qT]
 x_ref = [q_ref; q_ref]
 
 # ## gate 
-# GATE = 1 
+GATE = 1 
 # GATE = 2 
-GATE = 3
+# GATE = 3
 
 if GATE == 1 
 	r_cost = 1.0e-1 
@@ -253,7 +253,7 @@ s = Solver(trajopt, options=Options(
 
 # ## initialize
 x_interpolation = [x1, [[x1; x1] for t = 2:T]...]
-u_guess = [[0.0; RoboDojo.hopper.gravity * RoboDojo.hopper.mass_body * 0.5 * h[1]; 1.0e-4 * rand(nu - 2)] for t = 1:T-1] # may need to run more than once
+u_guess = [[0.0; RoboDojo.hopper.gravity * RoboDojo.hopper.mass_body * 0.5 * h[1]; 1.0e-1 * ones(nu - 2)] for t = 1:T-1] # may need to run more than once to get good trajectory
 z0 = zeros(s.p.num_var)
 for (t, idx) in enumerate(s.p.trajopt.model.idx.x)
     z0[idx] = x_interpolation[t]
@@ -292,3 +292,46 @@ maximum([norm(max.(0.0, contact_constraints_inequality(h, trajopt.x[t], trajopt.
 maximum([norm(contact_constraints_equality(h, trajopt.x[t], trajopt.u[t], zeros(0)), Inf) for t = 1:T-1])
 maximum([norm(hopper_dyn(mass_matrix, dynamics_bias, h, trajopt.x[t+1], trajopt.x[t], trajopt.u[t], zeros(0)), Inf) for t = 1:T-1])
 minimum([min.(0.0, u[2 .+ (1:nu-2)]) for u in trajopt.u[1:end-1]])
+
+## comparison 
+function obj1_compare(x, u, w)
+	x = x[1:8] 
+	u = u[1:2] 
+
+	J = 0.0 
+	J += 0.5 * transpose(x - x_ref) * Diagonal([1.0; 10.0; 1.0; 10.0; 1.0; 10.0; 1.0; 10.0]) * (x - x_ref) 
+	J += 0.5 * transpose(u) * Diagonal(r_cost * ones(hopper.nu)) * u
+	return J
+end
+
+function objt_compare(x, u, w)
+	x = x[1:8] 
+	u = u[1:2] 
+	J = 0.0 
+	J += 0.5 * transpose(x - x_ref) * q_cost * Diagonal([1.0; 10.0; 1.0; 10.0; 1.0; 10.0; 1.0; 10.0]) * (x - x_ref) 
+	J += 0.5 * transpose(u) * Diagonal(r_cost * ones(hopper.nu)) * u
+	return J
+end
+
+function objT_compare(x, u, w)
+	x = x[1:8] 
+	J = 0.0 
+	J += 0.5 * transpose(x - x_ref) * Diagonal([1.0; 1.0; 1.0; 1.0; 1.0; 1.0; 1.0; 1.0]) * (x - x_ref) 
+	return J
+end
+
+function obj_compare(x, u, w) 
+	J = 0.0 
+	J += obj1_compare(x[1], u[1], w[1]) 
+	for t = 2:T-1 
+		J += objt_compare(x[t], u[t], w[t])
+	end 	
+	J += objT_compare(x[T], nothing, nothing) 
+
+	return J 
+end
+
+obj_compare(x_sol, u_sol, w)
+
+obj_compare(trajopt.x, trajopt.u, w)
+@show norm(terminal_con(trajopt.x[T], zeros(0), zeros(0))[3:4], Inf)

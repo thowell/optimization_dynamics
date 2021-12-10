@@ -1,7 +1,10 @@
 """
     Cartpole w/ internal friction
 """
-struct Cartpole{T} <: Model{T}
+struct Friction end 
+struct Frictionless end 
+
+struct Cartpole{T,X} <: Model{T}
     # dimensions
     nq::Int # generalized coordinates
     nu::Int # controls
@@ -45,7 +48,7 @@ function C_func(model::Cartpole, q, q̇)
     return -C * q̇ + G
 end
 
-function dynamics(model::Cartpole, mass_matrix, dynamics_bias, h, q0, q1, u1, w1, λ1, q2)
+function dynamics(model::Cartpole{T,Friction}, mass_matrix, dynamics_bias, h, q0, q1, u1, w1, λ1, q2) where T
 	# evalutate at midpoint
     qm1 = 0.5 * (q0 + q1)
     vm1 = (q1 - q0) / h[1]
@@ -60,7 +63,7 @@ function dynamics(model::Cartpole, mass_matrix, dynamics_bias, h, q0, q1, u1, w1
 	return d + B_func(model, qm2) * u1[1] + transpose(P_func(model, q2)) * λ1
 end
 
-function dynamics_no_friction(model::Cartpole, mass_matrix, dynamics_bias, h, q0, q1, u1, w1, λ1, q2)
+function dynamics(model::Cartpole{T,Frictionless}, mass_matrix, dynamics_bias, h, q0, q1, u1, w1, λ1, q2) where T
 	# evalutate at midpoint
     qm1 = 0.5 * (q0 + q1)
     vm1 = (q1 - q0) / h[1]
@@ -75,7 +78,7 @@ function dynamics_no_friction(model::Cartpole, mass_matrix, dynamics_bias, h, q0
 	return d + B_func(model, qm2) * u1[1] 
 end
 
-function residual(model::Cartpole, z, θ, κ)
+function residual(model::Cartpole{T,Friction}, z, θ, κ) where T
     nq = model.nq
     nu = model.nu
     nc = model.nc
@@ -110,7 +113,7 @@ function residual(model::Cartpole, z, θ, κ)
     ]
 end
 
-function residual_no_friction(model::Cartpole, z, θ, κ)
+function residual(model::Cartpole{T,Frictionless}, z, θ, κ) where T
     nq = model.nq
     nu = model.nu
 
@@ -125,4 +128,7 @@ function residual_no_friction(model::Cartpole, z, θ, κ)
         h, q0, q1, u1, zeros(model.nw), zeros(0), q2);
 end
 
-cartpole = Cartpole(2, 1, 0, 2, 1.0, 0.2, 0.5, 9.81, [0.1; 0.1])
+# models
+cartpole_friction = Cartpole(2, 1, 0, 2, 1.0, 0.2, 0.5, 9.81, [0.1; 0.1])
+cartpole_frictionless = Cartpole(2, 1, 0, 2, 1.0, 0.2, 0.5, 9.81, [0.0; 0.0])
+
