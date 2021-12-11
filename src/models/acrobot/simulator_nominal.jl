@@ -13,7 +13,7 @@ end
 
 RoboDojo.num_var(model::DoublePendulum{T,Nominal}) where T = model.nq
 
-function RoboDojo.indices_optimization(model::DoublePendulum{T,Nominal}) 
+function RoboDojo.indices_optimization(model::DoublePendulum{T,Nominal}) where T
     nq = model.nq
     nz = nq
     IndicesOptimization(

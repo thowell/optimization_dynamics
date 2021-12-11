@@ -1,9 +1,6 @@
 append!(empty!(LOAD_PATH), Base.DEFAULT_LOAD_PATH)
 using Pkg
 
-# Add iLQR
-Pkg.add(url="https://github.com/thowell/IterativeLQR.jl") # add this way temporarily 
-
 ################################################################################
 # Generate notebooks
 ################################################################################
@@ -28,12 +25,14 @@ import RoboDojo: Model, lagrangian_derivatives, IndicesZ, cone_product
 
 # acrobot 
 include("../src/models/acrobot/model.jl")
+include("../src/models/acrobot/simulator_impact.jl")
+include("../src/models/acrobot/simulator_nominal.jl")
 include("../src/models/acrobot/codegen.jl") 
 
 # cartpole
 include("../src/models/cartpole/model.jl")
 include("../src/models/cartpole/simulator_friction.jl")
-include("../src/models/cartpole/simulator_no_friction.jl")
+include("../src/models/cartpole/simulator_frictionless.jl")
 include("../src/models/cartpole/codegen.jl")
 
 # hopper from RoboDojo.jl 

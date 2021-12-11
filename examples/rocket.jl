@@ -1,7 +1,8 @@
 using OptimizationDynamics
 using IterativeLQR
+using Rotations
+using LinearAlgebra
 using Random
-Random.seed!(1)
 
 # ## visualization 
 vis = Visualizer() 
@@ -45,13 +46,13 @@ x1 = zeros(rocket.nq)
 x1[1] = 2.5
 x1[2] = 2.5
 x1[3] = 10.0
-mrp = MRP(RotZ(0.25 * π) * RotY(-0.5 * π))
+mrp = Rotations.MRP(Rotations.RotZ(0.25 * π) * Rotations.RotY(-0.5 * π))
 x1[4:6] = [mrp.x; mrp.y; mrp.z]
 x1[9] = -1.0
 
 xT = zeros(rocket.nq)
 xT[3] = rocket.length
-mrpT = MRP(RotZ(0.25 * π) * RotY(0.0))
+mrpT = Rotations.MRP(Rotations.RotZ(0.25 * π) * Rotations.RotY(0.0))
 xT[4:6] = [mrpT.x; mrpT.y; mrpT.z]
 
 # ## objective
@@ -104,38 +105,43 @@ function terminal_con(x, u, w)
     ]
 end
 
-cont = Constraint(stage_con, nx, nu, idx_ineq=collect(1:(1 + (MODE == :projection ? 0 : 2))))
-conT = Constraint(terminal_con, nx, 0, idx_ineq=collect(1:4))
+cont = IterativeLQR.Constraint(stage_con, nx, nu, idx_ineq=collect(1:(1 + (MODE == :projection ? 0 : 2))))
+conT = IterativeLQR.Constraint(terminal_con, nx, 0, idx_ineq=collect(1:4))
 cons = [[cont for t = 1:T-1]..., conT]
 
 # ## rollout
+Random.seed!(1)
 ū = [1.0e-3 * randn(nu) for t = 1:T-1]
 w = [zeros(nw) for t = 1:T-1]
-x̄ = rollout(model, x1, ū)
+x̄ = IterativeLQR.rollout(model, x1, ū)
 visualize!(vis, rocket, x̄, Δt=h)
 
 # ## problem 
-prob = problem_data(model, obj, cons)
-initialize_controls!(prob, ū)
-initialize_states!(prob, x̄)
+prob = IterativeLQR.problem_data(model, obj, cons)
+IterativeLQR.initialize_controls!(prob, ū)
+IterativeLQR.initialize_states!(prob, x̄)
 
 # ## solve
 IterativeLQR.reset!(prob.s_data)
 IterativeLQR.solve!(prob, 
     linesearch = :armijo,
     α_min=1.0e-5,
-    obj_tol=1.0e-5,
-    grad_tol=1.0e-5,
+    obj_tol=1.0e-3,
+    grad_tol=1.0e-3,
     max_iter=100,
-    max_al_iter=10,
-    con_tol=0.001,
+    max_al_iter=15,
+    con_tol=0.005,
     ρ_init=1.0, 
     ρ_scale=10.0,
     verbose=true)
+
+@show IterativeLQR.eval_obj(prob.m_data.obj.costs, prob.m_data.x, prob.m_data.u, prob.m_data.w)
 @show prob.s_data.iter[1]
+@show norm(terminal_con(prob.m_data.x[T], zeros(0), zeros(0))[4 .+ (1:10)], Inf)
+@show prob.s_data.obj[1] # augmented Lagrangian cost
 
 # ## solution
-x_sol, u_sol = get_trajectory(prob)
+x_sol, u_sol = IterativeLQR.get_trajectory(prob)
 visualize!(vis, rocket, x_sol, Δt=h)
 
 # ## test thrust cone constraint

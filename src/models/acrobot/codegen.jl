@@ -1,3 +1,5 @@
+path = @get_scratch!("acrobot")
+
 # generate residual methods
 nq = acrobot_impact.nq
 nu = acrobot_impact.nu
@@ -26,7 +28,6 @@ rθ_acrobot_impact_func = build_function(rθ_impact, z, θ)[2]
 rz_acrobot_impact_array = similar(rz_impact, Float64)
 rθ_acrobot_impact_array = similar(rθ_impact, Float64)
 
-path = @get_scratch!("acrobot")
 @save joinpath(path, "impact.jld2") r_acrobot_impact_func rz_acrobot_impact_func rθ_acrobot_impact_func rz_acrobot_impact_array rθ_acrobot_impact_array
 @load joinpath(path, "impact.jld2") r_acrobot_impact_func rz_acrobot_impact_func rθ_acrobot_impact_func rz_acrobot_impact_array rθ_acrobot_impact_array
 

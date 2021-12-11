@@ -62,20 +62,20 @@ obj = [[ct for t = 1:T-1]..., cT]
 # ## constraints
 goal(x, u, w) = x - xT
 
-cont = Constraint()
-conT = Constraint(goal, nx, 0)
+cont = IterativeLQR.Constraint()
+conT = IterativeLQR.Constraint(goal, nx, 0)
 cons = [[cont for t = 1:T-1]..., conT] 
 
 # # rollout
 Random.seed!(1)
 ū = [1.0e-3 * randn(acrobot_mujoco.nu) for t = 1:T-1]
 w = [zeros(0) for t = 1:T-1]
-x̄ = rollout(model, x1, ū)
+x̄ = IterativeLQR.rollout(model, x1, ū)
 
 # ## problem
-prob = problem_data(model, obj, cons)
-initialize_controls!(prob, ū)
-initialize_states!(prob, x̄)
+prob = IterativeLQR.problem_data(model, obj, cons)
+IterativeLQR.initialize_controls!(prob, ū)
+IterativeLQR.initialize_states!(prob, x̄)
 
 # ## solve
 IterativeLQR.reset!(prob.s_data)
@@ -110,7 +110,7 @@ IterativeLQR.solve!(prob,
 	verbose=false) setup=(x̄=deepcopy(x̄), ū=deepcopy(ū))
 
 # ## solution
-x_sol, u_sol = get_trajectory(prob)
+x_sol, u_sol = IterativeLQR.get_trajectory(prob)
 
 # ## MuJoCo visualizer
 states = Array(undef, statespace(sim), T-1)

@@ -1,8 +1,8 @@
 path = @get_scratch!("cartpole")
 
-nq = cartpole.nq
-nu = cartpole.nu
-nc = cartpole.nc
+nq = cartpole_friction.nq
+nu = cartpole_friction.nu
+nc = cartpole_friction.nc
 nz = nq + 4 * nc
 nθ = nq + nq + nu + 2 + 1
 nz_nf = nq

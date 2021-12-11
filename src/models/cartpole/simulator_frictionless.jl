@@ -13,9 +13,9 @@ function RoboDojo.indices_z(model::Cartpole{T,Frictionless}) where T
     IndicesZ(q, γ, sγ, ψ, b, sψ, sb)
 end
 
-RoboDojo.num_var(model::Cartpole{T,Frictionless}) = model.nq
+RoboDojo.num_var(model::Cartpole{T,Frictionless}) where T = model.nq
 
-function RoboDojo.indices_optimization(model::Cartpole{T,Frictionless}) 
+function RoboDojo.indices_optimization(model::Cartpole{T,Frictionless}) where T
     nq = model.nq
     nz = nq 
     IndicesOptimization(
@@ -32,6 +32,6 @@ function RoboDojo.indices_optimization(model::Cartpole{T,Frictionless})
         collect(1:0))
 end
 
-function RoboDojo.initialize_z!(z, model::Cartpole{T,Frictionless}, idx::IndicesZ, q)
+function RoboDojo.initialize_z!(z, model::Cartpole{T,Frictionless}, idx::IndicesZ, q) where T
     z[idx.q] .= q
 end

@@ -1,7 +1,8 @@
 using OptimizationDynamics
 using IterativeLQR
+using RoboDojo
+using LinearAlgebra
 using Random
-Random.seed!(1)
 
 # ## visualize 
 vis = Visualizer() 
@@ -188,7 +189,7 @@ x_ref = [q_ref; q_ref]
 
 GATE = 1 
 ## GATE = 2 
-GATE = 3
+## GATE = 3
 
 if GATE == 1 
 	r_cost = 1.0e-1 
@@ -260,22 +261,22 @@ function terminal_con(x, u, w)
     ]
 end
 
-con1 = Constraint(stage1_con, 2 * hopper.nq, hopper.nu + 2 * hopper.nq, idx_ineq=collect(1:4))
-cont = Constraint(staget_con, 4 * hopper.nq, hopper.nu, idx_ineq=collect(1:4))
-conT = Constraint(terminal_con, 4 * hopper.nq, 0, idx_ineq=collect(1:2))
+con1 = IterativeLQR.Constraint(stage1_con, 2 * hopper.nq, hopper.nu + 2 * hopper.nq, idx_ineq=collect(1:4))
+cont = IterativeLQR.Constraint(staget_con, 4 * hopper.nq, hopper.nu, idx_ineq=collect(1:4))
+conT = IterativeLQR.Constraint(terminal_con, 4 * hopper.nq, 0, idx_ineq=collect(1:2))
 cons = [con1, [cont for t = 2:T-1]..., conT]
 
 # ## rollout
 ū_stand = [t == 1 ? [0.0; hopper.gravity * hopper.mass_body * 0.5 * h; x1] : [0.0; hopper.gravity * hopper.mass_body * 0.5 * h] for t = 1:T-1]
 w = [zeros(hopper.nw) for t = 1:T-1]
-x̄ = rollout(model, x1, ū_stand)
+x̄ = IterativeLQR.rollout(model, x1, ū_stand)
 q̄ = state_to_configuration(x̄)
 RoboDojo.visualize!(vis, hopper, x̄, Δt=h)
 
 # ## problem
-prob = problem_data(model, obj, cons)
-initialize_controls!(prob, ū_stand)
-initialize_states!(prob, x̄)
+prob = IterativeLQR.problem_data(model, obj, cons)
+IterativeLQR.initialize_controls!(prob, ū_stand)
+IterativeLQR.initialize_states!(prob, x̄)
 
 # ## solve
 IterativeLQR.reset!(prob.s_data)
@@ -297,7 +298,7 @@ IterativeLQR.reset!(prob.s_data)
 @show prob.s_data.obj[1] # augmented Lagrangian cost
     
 # ## solution
-x_sol, u_sol = get_trajectory(prob)
+x_sol, u_sol = IterativeLQR.get_trajectory(prob)
 q_sol = state_to_configuration(x_sol)
 RoboDojo.visualize!(vis, hopper, q_sol, Δt=h)
 

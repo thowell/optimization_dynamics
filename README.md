@@ -9,7 +9,7 @@ pkg> add https://github.com/thowell/optimization_dynamics
 ```
 This will install and build the package. 
 
-[Notebooks](examples/README.md) can be run for the following examples:
+[Notebooks](examples/README.md) are generated upon installation and can be run for the following examples:
 
 ## planar push
 <img src="animations/planar_push_rotate.gif" alt="drawing" width="400"/> 
@@ -26,5 +26,6 @@ This will install and build the package.
 ## rocket with thrust limits
 <img src="animations/starship_bellyflop_landing.gif" alt="drawing" width="400"/>
 
-Additional comparisons with [MuJoCo](examples/comparisons/acrobot) and [contact-implicit trajectory optimization](examples/comparisons/hopper.jl) are available.
+Additional comparisons with [MuJoCo](examples/comparisons/acrobot) and [contact-implicit trajectory optimization](examples/comparisons/hopper.jl) are available. 
+The path-following solver and hopper model can be found in [RoboDojo.jl](https://github.com/thowell/RoboDojo.jl).
 

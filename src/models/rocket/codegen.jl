@@ -27,9 +27,9 @@ rz_rocket = Symbolics.jacobian(r_rocket, z, simplify=true)
 rθ_rocket = Symbolics.jacobian(r_rocket, θ, simplify=true)
 
 # Build function
-r__rocketfunc = build_function(r_rocket, z, θ, κ)[2]
-rz__rocketfunc = build_function(rz_rocket, z, θ)[2]
-rθ__rocketfunc = build_function(rθ_rocket, z, θ)[2]
+r_rocket_func = build_function(r_rocket, z, θ, κ)[2]
+rz_rocket_func = build_function(rz_rocket, z, θ)[2]
+rθ_rocket_func = build_function(rθ_rocket, z, θ)[2]
 
 rz_rocket_array = similar(rz_rocket, Float64)
 rθ_rocket_array = similar(rθ_rocket, Float64)

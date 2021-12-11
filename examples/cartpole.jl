@@ -1,7 +1,6 @@
 using OptimizationDynamics
 using IterativeLQR
 using Random
-Random.seed!(1)
 
 # ## visualization 
 vis = Visualizer() 
@@ -16,20 +15,20 @@ h = 0.05
 T = 51
 
 if MODE == :friction 
-	im_dyn = ImplicitDynamics(cartpole, h, eval(r_cartpole_friction_func), eval(rz_cartpole_friction_func), eval(rθ_cartpole_friction_func); 
+	im_dyn = ImplicitDynamics(cartpole_friction, h, eval(r_cartpole_friction_func), eval(rz_cartpole_friction_func), eval(rθ_cartpole_friction_func); 
 		r_tol=1.0e-8, κ_eval_tol=1.0e-4, κ_grad_tol=1.0e-3, no_impact=true) 
-        cartpole.friction .= [0.35; 0.35]
-        ## cartpole.friction .= [0.25; 0.25]
-        ## cartpole.friction .= [0.1; 0.1]
-        ## cartpole.friction .= [0.01; 0.01]
+        cartpole_friction.friction .= [0.35; 0.35]
+        ## cartpole_friction.friction .= [0.25; 0.25]
+        ## cartpole_friction.friction .= [0.1; 0.1]
+        ## cartpole_friction.friction .= [0.01; 0.01]
 else
-	im_dyn = ImplicitDynamics(cartpole, h, eval(r_cartpole_frictionless_func), eval(rz_cartpole_frictionless_func), eval(rθ_cartpole_frictionless_func); 
+	im_dyn = ImplicitDynamics(cartpole_frictionless, h, eval(r_cartpole_frictionless_func), eval(rz_cartpole_frictionless_func), eval(rθ_cartpole_frictionless_func); 
     	        r_tol=1.0e-8, κ_eval_tol=1.0, κ_grad_tol=1.0, no_impact=true, frictionless=true) 
 end
 
-nx = 2 * cartpole.nq
-nu = cartpole.nu 
-nw = cartpole.nw
+nx = 2 * cartpole_friction.nq
+nu = cartpole_friction.nu 
+nw = cartpole_friction.nw
 
 # ## iLQR model
 ilqr_dyn = IterativeLQR.Dynamics((d, x, u, w) -> f(d, im_dyn, x, u, w), 
@@ -71,21 +70,21 @@ function terminal_con(x, u, w)
     ]
 end
 
-cont = Constraint()
-conT = Constraint(terminal_con, nx, 0)
+cont = IterativeLQR.Constraint()
+conT = IterativeLQR.Constraint(terminal_con, nx, 0)
 cons = [[cont for t = 1:T-1]..., conT]
 
 # ## rollout
 ū = [(t == 1 ? -1.5 : 0.0) * ones(nu) for t = 1:T-1] # set value to -1.0 when friction coefficient = 0.25
 w = [zeros(nw) for t = 1:T-1]
-x̄ = rollout(model, x1, ū)
+x̄ = IterativeLQR.rollout(model, x1, ū)
 q̄ = state_to_configuration(x̄)
-visualize!(vis, cartpole, q̄, Δt=h)
+visualize!(vis, cartpole_friction, q̄, Δt=h)
 
 # ## problem 
-prob = problem_data(model, obj, cons)
-initialize_controls!(prob, ū)
-initialize_states!(prob, x̄)
+prob = IterativeLQR.problem_data(model, obj, cons)
+IterativeLQR.initialize_controls!(prob, ū)
+IterativeLQR.initialize_states!(prob, x̄)
 
 # ## solve
 IterativeLQR.reset!(prob.s_data)
@@ -107,9 +106,9 @@ IterativeLQR.solve!(prob,
 @show prob.s_data.obj[1] # augmented Lagrangian cost
         
 # ## solution
-x_sol, u_sol = get_trajectory(prob)
+x_sol, u_sol = IterativeLQR.get_trajectory(prob)
 q_sol = state_to_configuration(x_sol)
-visualize!(vis, cartpole, q_sol, Δt=h)
+visualize!(vis, cartpole_friction, q_sol, Δt=h)
 
 # ## benchmark 
 @benchmark IterativeLQR.solve!($prob, x̄, ū,
@@ -123,122 +122,3 @@ visualize!(vis, cartpole, q_sol, Δt=h)
     ρ_init=1.0, 
     ρ_scale=10.0, 
 	verbose=false) setup=(x̄=deepcopy(x̄), ū=deepcopy(ū))
-
-    # ghost
-limit_color = [0.0, 0.0, 0.0]
-# limit_color = [0.0, 1.0, 0.0]
-
-t = 1
-id = t
-tl = 0.05
-_create_cartpole!(vis, cartpole;
-        tl = tl,
-        color = RGBA(limit_color..., tl),
-        i = id)
-_set_cartpole!(vis, cartpole, x_sol[t], i = id)
-
-t = 5
-id = t
-tl = 0.15
-_create_cartpole!(vis, cartpole;
-        tl = tl,
-        color = RGBA(limit_color..., tl),
-        i = id)
-_set_cartpole!(vis, cartpole, x_sol[t], i = id)
-
-t = 10
-id = t
-tl = 0.25
-_create_cartpole!(vis, cartpole;
-        tl = tl,
-        color = RGBA(limit_color..., tl),
-        i = id)
-_set_cartpole!(vis, cartpole, x_sol[t], i = id)
-
-t = 15
-id = t
-tl = 0.35
-_create_cartpole!(vis, cartpole;
-        tl = tl,
-        color = RGBA(limit_color..., tl),
-        i = id)
-_set_cartpole!(vis, cartpole, x_sol[t], i = id)
-
-t = 20
-id = t
-tl = 0.45
-_create_cartpole!(vis, cartpole;
-        tl = tl,
-        color = RGBA(limit_color..., tl),
-        i = id)
-_set_cartpole!(vis, cartpole, x_sol[t], i = id)
-
-t = 25
-id = t
-tl = 0.55
-_create_cartpole!(vis, cartpole;
-        tl = tl,
-        color = RGBA(limit_color..., tl),
-        i = id)
-_set_cartpole!(vis, cartpole, x_sol[t], i = id)
-
-t = 30
-id = t
-tl = 0.65
-_create_cartpole!(vis, cartpole;
-tl = tl,
-color = RGBA(limit_color..., tl),
-i = id)
-_set_cartpole!(vis, cartpole, x_sol[t], i = id)
-
-t = 35
-id = t
-tl = 0.75
-_create_cartpole!(vis, cartpole;
-        tl = tl,
-        color = RGBA(limit_color..., tl),
-        i = id)
-_set_cartpole!(vis, cartpole, x_sol[t], i = id)
-
-t = 40
-id = t
-tl = 0.85
-_create_cartpole!(vis, cartpole;
-        tl = tl,
-        color = RGBA(limit_color..., tl),
-        i = id)
-_set_cartpole!(vis, cartpole, x_sol[t], i = id)
-
-t = 45
-id = t
-tl = 0.95
-_create_cartpole!(vis, cartpole;
-        tl = tl,
-        color = RGBA(limit_color..., tl),
-        i = id)
-_set_cartpole!(vis, cartpole, x_sol[t], i = id)
-
-t = 51
-id = t
-tl = 1.0
-_create_cartpole!(vis, cartpole;
-        tl = tl,
-        color = RGBA(limit_color..., tl),
-        i = id)
-_set_cartpole!(vis, cartpole, x_sol[t], i = id)
-
-line_mat = LineBasicMaterial(color=color=RGBA(1.0, 153.0 / 255.0, 51.0 / 255.0, 1.0), linewidth=10.0)
-# line_mat = LineBasicMaterial(color=color=RGBA(51.0 / 255.0, 1.0, 1.0, 1.0), linewidth=10.0)
-
-points = Vector{Point{3,Float64}}()
-for (i, xt) in enumerate(x_sol)
-    k = kinematics(cartpole, xt)
-	push!(points, Point(k[1], 0.0, k[2]))
-
-    setobject!(vis["ee_vertex_$i"], Sphere(Point3f0(0),
-        convert(Float32, 0.001)),
-        MeshPhongMaterial(color = RGBA(1.0, 153.0 / 255.0, 51.0 / 255.0, 1.0)))
-        settransform!(vis["ee_vertex_$i"], Translation(points[i]))
-end
-setobject!(vis[:ee_traj], MeshCat.Line(points, line_mat))
-open(vis)

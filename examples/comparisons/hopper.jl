@@ -1,3 +1,7 @@
+using RoboDojo 
+using LinearAlgebra 
+using DirectTrajectoryOptimization 
+
 function hopper_dyn(mass_matrix, dynamics_bias, h, y, x, u, w) 
     model = RoboDojo.hopper
 
@@ -138,7 +142,7 @@ d1 = DirectTrajectoryOptimization.Dynamics((y, x, u, w) -> hopper_dyn1(mass_matr
 dt = DirectTrajectoryOptimization.Dynamics((y, x, u, w) -> hopper_dynt(mass_matrix, dynamics_bias, [h], y, x, u, w), 2 * nx, 2 * nx, nu)
 
 dyn = [d1, [dt for t = 2:T-1]...]
-model = DynamicsModel(dyn)
+model = DirectTrajectoryOptimization.DynamicsModel(dyn)
 
 # ## initial conditions
 q1 = [0.0; 0.5 + RoboDojo.hopper.foot_radius; 0.0; 0.5]
@@ -234,19 +238,19 @@ xut = [qu; qu; Inf * ones(nx)]
 ul = [-10.0; -10.0; zeros(nu - 2)]
 uu = [10.0; 10.0; Inf * ones(nu - 2)]
 
-bnd1 = Bound(nx, nu, [1], xl=xl1, xu=xu1, ul=ul, uu=uu)
-bndt = Bound(2 * nx, nu, [t for t = 2:T-1], xl=xlt, xu=xut, ul=ul, uu=uu)
-bndT = Bound(2 * nx, 0, [T], xl=xlt, xu=xut)
+bnd1 = DirectTrajectoryOptimization.Bound(nx, nu, [1], xl=xl1, xu=xu1, ul=ul, uu=uu)
+bndt = DirectTrajectoryOptimization.Bound(2 * nx, nu, [t for t = 2:T-1], xl=xlt, xu=xut, ul=ul, uu=uu)
+bndT = DirectTrajectoryOptimization.Bound(2 * nx, 0, [T], xl=xlt, xu=xut)
 
-con_eq1 = StageConstraint(stage1_eq, nx, nu, nw, [1], :equality)
-conT_eq = StageConstraint(terminal_con_eq, 2 * nx, nu, nw, [T], :equality)
-conT_ineq = StageConstraint(terminal_con_ineq, 2 * nx, nu, nw, [T], :inequality)
+con_eq1 = DirectTrajectoryOptimization.StageConstraint(stage1_eq, nx, nu, nw, [1], :equality)
+conT_eq = DirectTrajectoryOptimization.StageConstraint(terminal_con_eq, 2 * nx, nu, nw, [T], :equality)
+conT_ineq = DirectTrajectoryOptimization.StageConstraint(terminal_con_ineq, 2 * nx, nu, nw, [T], :inequality)
 
-cons = ConstraintSet([bnd1, bndt, bndT], [contact_ineq1, contact_ineqt, contact_eq1, contact_eqt, con_eq1, conT_eq, conT_ineq])
+cons = DirectTrajectoryOptimization.ConstraintSet([bnd1, bndt, bndT], [contact_ineq1, contact_ineqt, contact_eq1, contact_eqt, con_eq1, conT_eq, conT_ineq])
 
 # ## problem 
-trajopt = TrajectoryOptimizationProblem(obj, model, cons)
-s = Solver(trajopt, options=Options(
+trajopt = DirectTrajectoryOptimization.TrajectoryOptimizationProblem(obj, model, cons)
+s = DirectTrajectoryOptimization.Solver(trajopt, options=DirectTrajectoryOptimization.Options(
     tol=1.0e-3,
     constr_viol_tol=1.0e-3,
 ))
@@ -261,7 +265,7 @@ end
 for (t, idx) in enumerate(s.p.trajopt.model.idx.u)
     z0[idx] = u_guess[t]
 end
-initialize!(s, z0)
+DirectTrajectoryOptimization.initialize!(s, z0)
 
 # ## solve
 DirectTrajectoryOptimization.solve!(s)
@@ -269,11 +273,11 @@ DirectTrajectoryOptimization.solve!(s)
 # ## benchmark 
 s.solver.options["print_level"] = 0
 function solve(s, z) 
-    initialize!(s, z) 
+    DirectTrajectoryOptimization.initialize!(s, z) 
     DirectTrajectoryOptimization.solve!(s)
 end
 
-@benchmark solve($s, $z0)
+@benchmark DirectTrajectoryOptimization.solve($s, $z0)
 
 # ## solution
 @show trajopt.x[1]
@@ -293,7 +297,7 @@ maximum([norm(contact_constraints_equality(h, trajopt.x[t], trajopt.u[t], zeros(
 maximum([norm(hopper_dyn(mass_matrix, dynamics_bias, h, trajopt.x[t+1], trajopt.x[t], trajopt.u[t], zeros(0)), Inf) for t = 1:T-1])
 minimum([min.(0.0, u[2 .+ (1:nu-2)]) for u in trajopt.u[1:end-1]])
 
-## comparison 
+# ## comparison 
 function obj1_compare(x, u, w)
 	x = x[1:8] 
 	u = u[1:2] 
@@ -332,6 +336,5 @@ function obj_compare(x, u, w)
 end
 
 obj_compare(x_sol, u_sol, w)
-
 obj_compare(trajopt.x, trajopt.u, w)
 @show norm(terminal_con(trajopt.x[T], zeros(0), zeros(0))[3:4], Inf)

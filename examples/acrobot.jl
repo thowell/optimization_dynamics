@@ -22,12 +22,12 @@ if MODE == :impact
 		no_friction=true) 
 else
 	im_dyn = ImplicitDynamics(acrobot_nominal, h, eval(r_acrobot_nominal_func), eval(rz_acrobot_nominal_func), eval(rθ_acrobot_nominal_func); 
-	    r_tol=1.0e-8, κ_eval_tol=1.0, κ_grad_tol=1.0, nominal=true, no_friction=true) 
+	    r_tol=1.0e-8, κ_eval_tol=1.0, κ_grad_tol=1.0, no_friction=true) 
 end
 
-nx = 2 * acrobot.nq
-nu = acrobot.nu 
-nw = acrobot.nw
+nx = 2 * acrobot_impact.nq
+nu = acrobot_impact.nu 
+nw = acrobot_impact.nw
 
 # ## iLQR model
 ilqr_dyn = IterativeLQR.Dynamics((d, x, u, w) -> f(d, im_dyn, x, u, w), 
@@ -49,8 +49,8 @@ xT = [qT; qT]
 function objt(x, u, w)
 	J = 0.0 
 
-	q1 = x[1:acrobot.nq] 
-	q2 = x[acrobot.nq .+ (1:acrobot.nq)] 
+	q1 = x[1:acrobot_impact.nq] 
+	q2 = x[acrobot_impact.nq .+ (1:acrobot_impact.nq)] 
 	v1 = (q2 - q1) ./ h
 
 	J += 0.5 * 0.1 * transpose(v1) * v1 
@@ -62,8 +62,8 @@ end
 function objT(x, u, w)
 	J = 0.0 
 	
-	q1 = x[1:acrobot.nq] 
-	q2 = x[acrobot.nq .+ (1:acrobot.nq)] 
+	q1 = x[1:acrobot_impact.nq] 
+	q2 = x[acrobot_impact.nq .+ (1:acrobot_impact.nq)] 
 	v1 = (q2 - q1) ./ h
 
 	J += 0.5 * 0.1 * transpose(v1) * v1
@@ -82,22 +82,22 @@ function terminal_con(x, u, w)
     ]
 end
 
-cont = Constraint()
-conT = Constraint(terminal_con, nx, 0)
+cont = IterativeLQR.Constraint()
+conT = IterativeLQR.Constraint(terminal_con, nx, 0)
 cons = [[cont for t = 1:T-1]..., conT]
 
 # ## rollout
 Random.seed!(1)
 ū = [1.0e-3 * randn(nu) for t = 1:T-1]
 w = [zeros(nw) for t = 1:T-1]
-x̄ = rollout(model, x1, ū)
+x̄ = IterativeLQR.rollout(model, x1, ū)
 q̄ = state_to_configuration(x̄)
-visualize!(vis, acrobot, q̄, Δt=h)
+visualize!(vis, acrobot_impact, q̄, Δt=h)
 
 # ## problem 
-prob = problem_data(model, obj, cons)
-initialize_controls!(prob, ū)
-initialize_states!(prob, x̄)
+prob = IterativeLQR.problem_data(model, obj, cons)
+IterativeLQR.initialize_controls!(prob, ū)
+IterativeLQR.initialize_states!(prob, x̄)
 
 # ## solve
 IterativeLQR.reset!(prob.s_data)
@@ -119,9 +119,9 @@ IterativeLQR.solve!(prob,
 @show prob.s_data.obj[1] # augmented Lagrangian cost
 	
 # ## solution
-x_sol, u_sol = get_trajectory(prob)
+x_sol, u_sol = IterativeLQR.get_trajectory(prob)
 q_sol = state_to_configuration(x_sol)
-visualize!(vis, acrobot, q_sol, Δt=h)
+visualize!(vis, acrobot_impact, q_sol, Δt=h)
 
 # ## benchmark
 @benchmark IterativeLQR.solve!($prob, x̄, ū,

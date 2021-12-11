@@ -124,11 +124,11 @@ function residual(model::Cartpole{T,Frictionless}, z, θ, κ) where T
 
     q2 = z[1:nq]
 
-    return dynamics_no_friction(model, a -> M_func(model, a), (a, b) -> C_func(model, a, b), 
+    return dynamics(model, a -> M_func(model, a), (a, b) -> C_func(model, a, b), 
         h, q0, q1, u1, zeros(model.nw), zeros(0), q2);
 end
 
 # models
-cartpole_friction = Cartpole(2, 1, 0, 2, 1.0, 0.2, 0.5, 9.81, [0.1; 0.1])
-cartpole_frictionless = Cartpole(2, 1, 0, 2, 1.0, 0.2, 0.5, 9.81, [0.0; 0.0])
+cartpole_friction = Cartpole{Float64,Friction}(2, 1, 0, 2, 1.0, 0.2, 0.5, 9.81, [0.1; 0.1])
+cartpole_frictionless = Cartpole{Float64,Frictionless}(2, 1, 0, 2, 1.0, 0.2, 0.5, 9.81, [0.0; 0.0])
 

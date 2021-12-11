@@ -1,7 +1,6 @@
 using OptimizationDynamics
 using IterativeLQR
 using Random
-Random.seed!(1)
 
 # ## visualization 
 vis = Visualizer() 
@@ -12,8 +11,7 @@ MODE = :translate
 MODE = :rotate 
 
 # ## gradient bundle
-GB = true 
-include("../src/gradient_bundle.jl")
+GB = false 
 
 # ## state-space model
 h = 0.1
@@ -32,9 +30,10 @@ ilqr_dyn = IterativeLQR.Dynamics((d, x, u, w) -> f(d, im_dyn, x, u, w),
 	(du, x, u, w) -> GB ? fu_gb(du, im_dyn, x, u, w) : fu(du, im_dyn, x, u, w), 
 	nx, nx, nu) 
 
-	model = [ilqr_dyn for t = 1:T-1]
+model = [ilqr_dyn for t = 1:T-1]
 
 # ## initial conditions and goal
+r_dim = 0.1
 if MODE == :translate 
 	q0 = [0.0, 0.0, 0.0, -r_dim - 1.0e-8, 0.0]
 	q1 = [0.0, 0.0, 0.0, -r_dim - 1.0e-8, 0.0]
@@ -58,8 +57,8 @@ end
 function objt(x, u, w)
 	J = 0.0 
 
-	q1 = x[1:nq] 
-	q2 = x[nq .+ (1:nq)] 
+	q1 = x[1:planarpush.nq] 
+	q2 = x[planarpush.nq .+ (1:planarpush.nq)] 
 	v1 = (q2 - q1) ./ h
 
 	J += 0.5 * transpose(v1) * Diagonal([1.0, 1.0, 1.0, 0.1, 0.1]) * v1 
@@ -72,8 +71,8 @@ end
 function objT(x, u, w)
 	J = 0.0 
 	
-	q1 = x[1:nq] 
-	q2 = x[nq .+ (1:nq)] 
+	q1 = x[1:planarpush.nq] 
+	q2 = x[planarpush.nq .+ (1:planarpush.nq)] 
 	v1 = (q2 - q1) ./ h
 
 	J += 0.5 * transpose(v1) * Diagonal([1.0, 1.0, 1.0, 0.1, 0.1]) * v1 
@@ -103,22 +102,22 @@ function terminal_con(x, u, w)
     ]
 end
 
-cont = Constraint(stage_con, nx, nu, idx_ineq=collect(1:(2 * nu)))
-conT = Constraint(terminal_con, nx, 0)
+cont = IterativeLQR.Constraint(stage_con, nx, nu, idx_ineq=collect(1:(2 * nu)))
+conT = IterativeLQR.Constraint(terminal_con, nx, 0)
 cons = [[cont for t = 1:T-1]..., conT]
 
 # ## rollout
 x1 = [q0; q1]
 ū = MODE == :translate ? [t < 5 ? [1.0; 0.0] : [0.0; 0.0] for t = 1:T-1] : [t < 5 ? [1.0; 0.0] : t < 10 ? [0.5; 0.0] : [0.0; 0.0] for t = 1:T-1]
 w = [zeros(nw) for t = 1:T-1]
-x̄ = rollout(model, x1, ū)
+x̄ = IterativeLQR.rollout(model, x1, ū)
 q̄ = state_to_configuration(x̄)
 visualize!(vis, planarpush, q̄, Δt=h)
 
 # ## problem 
-prob = problem_data(model, obj, cons)
-initialize_controls!(prob, ū)
-initialize_states!(prob, x̄)
+prob = IterativeLQR.problem_data(model, obj, cons)
+IterativeLQR.initialize_controls!(prob, ū)
+IterativeLQR.initialize_states!(prob, x̄)
 
 # ## solve
 IterativeLQR.reset!(prob.s_data)
@@ -134,10 +133,13 @@ IterativeLQR.solve!(prob,
 	ρ_scale=10.0, 
 	verbose=true)
 
+@show IterativeLQR.eval_obj(prob.m_data.obj.costs, prob.m_data.x, prob.m_data.u, prob.m_data.w)
 @show prob.s_data.iter[1]
-
+@show norm(terminal_con(prob.m_data.x[T], zeros(0), zeros(0)), Inf)
+@show prob.s_data.obj[1] # augmented Lagrangian cost
+		
 # ## solution
-x_sol, u_sol = get_trajectory(prob)
+x_sol, u_sol = IterativeLQR.get_trajectory(prob)
 q_sol = state_to_configuration(x_sol)
 visualize!(vis, planarpush, q_sol, Δt=h)
 
