@@ -22,7 +22,7 @@ Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
 [compat]
 Colors = "0.12"
 CoordinateTransformations = "0.6.2"
-DirectTrajectoryOptimization = "0.1.1"
+DirectTrajectoryOptimization = "0.1.2"
 GeometryBasics = "0.3.13"
 IfElse = "0.1.1"
 IterativeLQR = "0.1.0"
