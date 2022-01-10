@@ -124,6 +124,7 @@ q_sol = state_to_configuration(x_sol)
 visualize!(vis, acrobot_impact, q_sol, Δt=h)
 
 # ## benchmark
+using BenchmarkTools
 @benchmark IterativeLQR.solve!($prob, x̄, ū,
 	linesearch = :armijo,
     α_min=1.0e-5,

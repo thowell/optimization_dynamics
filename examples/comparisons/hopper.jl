@@ -1,6 +1,7 @@
 using RoboDojo 
 using LinearAlgebra 
 using DirectTrajectoryOptimization 
+const DTO = DirectTrajectoryOptimization
 
 function hopper_dyn(mass_matrix, dynamics_bias, h, y, x, u, w) 
     model = RoboDojo.hopper
@@ -20,11 +21,6 @@ function hopper_dyn(mass_matrix, dynamics_bias, h, y, x, u, w)
     u_control = u[1:nu] 
     γ = u[nu .+ (1:4)] 
     β = u[nu + 4 .+ (1:4)] 
-    # ψ = u[nu + 4 + 4 .+ (1:2)] 
-    # η = u[nu + 4 + 4 + 2 .+ (1:4)] 
-    # sϕ = u[nu + 4 + 4 + 2 + 4 .+ (1:4)]
-    # sψ = u[nu + 4 + 4 + 2 + 4 + 4 .+ (1:2)]
-    # sα = u[nu + 4 + 4 + 2 + 4 + 4 + 2 .+ (1:1)]
     
     E = [1.0 -1.0] # friction mapping 
     J = RoboDojo.contact_jacobian(model, q2⁺)
@@ -33,31 +29,37 @@ function hopper_dyn(mass_matrix, dynamics_bias, h, y, x, u, w)
                          γ[3:4]]
     λ[3] += (model.body_radius * E * β[1:2])[1] # friction on body creates a moment
 
-    [q2⁺ - q2⁻;
+    [
+     q2⁺ - q2⁻;
      RoboDojo.dynamics(model, mass_matrix, dynamics_bias, 
-        h, q1⁻, q2⁺, u_control, zeros(model.nw), λ, q3⁺)]
+        h, q1⁻, q2⁺, u_control, zeros(model.nw), λ, q3⁺)
+    ]
 end
 
 function hopper_dyn1(mass_matrix, dynamics_bias, h, y, x, u, w)
+    nx = 8 
     [
      hopper_dyn(mass_matrix, dynamics_bias, h, y, x, u, w);
-     y[nx .+ (1:nx)] - x
+     y[nx .+ (1:5)] - [u[2 .+ (1:4)]; u[end]];
+     y[nx + 5 .+ (1:nx)] - x
     ]
 end
 
 function hopper_dynt(mass_matrix, dynamics_bias, h, y, x, u, w)
+    nx = 8
     [
      hopper_dyn(mass_matrix, dynamics_bias, h, y, x, u, w);
-     y[nx .+ (1:nx)] - x[nx .+ (1:nx)]
+     y[nx .+ (1:5)] - [u[2 .+ (1:4)]; u[end]];
+     y[nx + 5 .+ (1:nx)] - x[nx + 5 .+ (1:nx)]
     ]
 end
 
-
-function contact_constraints_inequality(h, x, u, w) 
+function contact_constraints_inequality_1(h, x, u, w) 
     model = RoboDojo.hopper
 
     nq = model.nq
     nu = model.nu 
+    nx = 2nq
 
     q2 = x[1:nq] 
     q3 = x[nq .+ (1:nq)] 
@@ -67,26 +69,69 @@ function contact_constraints_inequality(h, x, u, w)
     β = u[nu + 4 .+ (1:4)] 
     ψ = u[nu + 4 + 4 .+ (1:2)] 
     η = u[nu + 4 + 4 + 2 .+ (1:4)] 
-    sϕ = u[nu + 4 + 4 + 2 + 4 .+ (1:4)]
-    sψ = u[nu + 4 + 4 + 2 + 4 + 4 .+ (1:2)]
-    sα = u[nu + 4 + 4 + 2 + 4 + 4 + 2 .+ (1:1)]
+    sα = u[nu + 4 + 4 + 2 + 4 .+ (1:1)]
 
     ϕ = RoboDojo.signed_distance(model, q3) 
-   
-    v = (q3 - q2) ./ h[1]
-    vT_body = v[1] + model.body_radius * v[3]
-    vT_foot = (RoboDojo.kinematics_foot_jacobian(model, q3) * v)[1]
-    vT = [vT_body; -vT_body; vT_foot; -vT_foot]
-    
-    ψ_stack = [ψ[1] * ones(2); ψ[2] * ones(2)]
+  
+    μ = [model.friction_body_world; model.friction_foot_world]
+    fc = μ .* γ[1:2] - [sum(β[1:2]); sum(β[3:4])]
+
+    [
+     -ϕ; 
+     -fc;
+     β .* η .- sα;
+     ψ .* fc  .- sα;
+    ]
+end
+
+function contact_constraints_inequality_t(h, x, u, w) 
+    model = RoboDojo.hopper
+
+    nq = model.nq
+    nu = model.nu 
+    nx = 2nq
+
+    q2 = x[1:nq] 
+    q3 = x[nq .+ (1:nq)] 
+
+    γ = u[nu .+ (1:4)] 
+    β = u[nu + 4 .+ (1:4)] 
+    ψ = u[nu + 4 + 4 .+ (1:2)] 
+    η = u[nu + 4 + 4 + 2 .+ (1:4)] 
+    sα = u[nu + 4 + 4 + 2 + 4 .+ (1:1)]
+
+    ϕ = RoboDojo.signed_distance(model, q3) 
+    γ⁻ = x[nx .+ (1:4)] 
+    sα⁻ = x[nx + 4 .+ (1:1)]
     
     μ = [model.friction_body_world; model.friction_foot_world]
     fc = μ .* γ[1:2] - [sum(β[1:2]); sum(β[3:4])]
 
     [
-     γ .* sϕ .- sα;
+     -ϕ; 
+     -fc;
+     γ⁻ .* ϕ .- sα⁻;
      β .* η .- sα;
-     ψ .* sψ  .- sα;
+     ψ .* fc  .- sα;
+    ]
+end
+
+function contact_constraints_inequality_T(h, x, u, w) 
+    model = RoboDojo.hopper
+
+    nq = model.nq
+    nx = 2nq
+
+    q2 = x[1:nq] 
+    q3 = x[nq .+ (1:nq)] 
+
+    ϕ = RoboDojo.signed_distance(model, q3) 
+    γ⁻ = x[nx .+ (1:4)] 
+    sα⁻ = x[nx + 4 .+ (1:1)]
+   
+    [
+     -ϕ; 
+     γ⁻ .* ϕ .- sα⁻;
     ]
 end
 
@@ -99,16 +144,10 @@ function contact_constraints_equality(h, x, u, w)
     q2 = x[1:nq] 
     q3 = x[nq .+ (1:nq)] 
 
-    u_control = u[1:nu] 
     γ = u[nu .+ (1:4)] 
     β = u[nu + 4 .+ (1:4)] 
     ψ = u[nu + 4 + 4 .+ (1:2)] 
     η = u[nu + 4 + 4 + 2 .+ (1:4)] 
-    sϕ = u[nu + 4 + 4 + 2 + 4 .+ (1:4)]
-    sψ = u[nu + 4 + 4 + 2 + 4 + 4 .+ (1:2)]
-    sα = u[nu + 4 + 4 + 2 + 4 + 4 + 2 .+ (1:1)]
-
-    ϕ = RoboDojo.signed_distance(model, q3) 
    
     v = (q3 - q2) ./ h[1]
     vT_body = v[1] + model.body_radius * v[3]
@@ -117,12 +156,7 @@ function contact_constraints_equality(h, x, u, w)
     
     ψ_stack = [ψ[1] * ones(2); ψ[2] * ones(2)]
     
-    μ = [model.friction_body_world; model.friction_foot_world]
-    fc = μ .* γ[1:2] - [sum(β[1:2]); sum(β[3:4])]
-
     [
-     sϕ - ϕ;
-     sψ - fc;
      η - vT - ψ_stack;
     ]
 end
@@ -133,16 +167,15 @@ h = 0.05
 
 # ## hopper 
 nx = 2 * RoboDojo.hopper.nq
-nu = RoboDojo.hopper.nu + 4 + 4 + 2 + 4 + 4 + 2 + 1
+nu = RoboDojo.hopper.nu + 4 + 4 + 2 + 4 + 1
 nw = RoboDojo.hopper.nw
 
 # ## model
 mass_matrix, dynamics_bias = RoboDojo.codegen_dynamics(RoboDojo.hopper)
-d1 = DirectTrajectoryOptimization.Dynamics((y, x, u, w) -> hopper_dyn1(mass_matrix, dynamics_bias, [h], y, x, u, w), 2 * nx, nx, nu)
-dt = DirectTrajectoryOptimization.Dynamics((y, x, u, w) -> hopper_dynt(mass_matrix, dynamics_bias, [h], y, x, u, w), 2 * nx, 2 * nx, nu)
+d1 = DTO.Dynamics((y, x, u, w) -> hopper_dyn1(mass_matrix, dynamics_bias, [h], y, x, u, w), 2 * nx + 5, nx, nu)
+dt = DTO.Dynamics((y, x, u, w) -> hopper_dynt(mass_matrix, dynamics_bias, [h], y, x, u, w), 2 * nx + 5, 2 * nx + 5, nu)
 
 dyn = [d1, [dt for t = 2:T-1]...]
-model = DirectTrajectoryOptimization.DynamicsModel(dyn)
 
 # ## initial conditions
 q1 = [0.0; 0.5 + RoboDojo.hopper.foot_radius; 0.0; 0.5]
@@ -175,7 +208,7 @@ end
 function obj1(x, u, w)
 	J = 0.0 
 	J += 0.5 * transpose(x - x_ref) * Diagonal([1.0; 10.0; 1.0; 10.0; 1.0; 10.0; 1.0; 10.0]) * (x - x_ref) 
-	J += 0.5 * transpose(u) * Diagonal(r_cost * ones(nu)) * u
+	J += 0.5 * transpose(u) * Diagonal([r_cost * ones(RoboDojo.hopper.nu); zeros(nu - RoboDojo.hopper.nu)]) * u
     J += 1000.0 * u[nu]
 	return J
 end
@@ -183,7 +216,7 @@ end
 function objt(x, u, w)
 	J = 0.0 
 	J += 0.5 * transpose(x[1:nx] - x_ref) * Diagonal(q_cost * [1.0; 10.0; 1.0; 10.0; 1.0; 10.0; 1.0; 10.0]) * (x[1:nx] - x_ref)
-	J += 0.5 * transpose(u) * Diagonal(r_cost * ones(nu)) * u
+	J += 0.5 * transpose(u) * Diagonal([r_cost * ones(RoboDojo.hopper.nu); zeros(nu - RoboDojo.hopper.nu)]) * u
     J += 1000.0 * u[nu]
 	return J
 end
@@ -194,108 +227,103 @@ function objT(x, u, w)
     return J
 end
 
-c1 = DirectTrajectoryOptimization.Cost(obj1, nx, nu, nw, [1])
-ct = DirectTrajectoryOptimization.Cost(objt, 2 * nx, nu, nw, [t for t = 2:T-1])
-cT = DirectTrajectoryOptimization.Cost(objT, 2 * nx, 0, 0, [T])
-obj = [c1, ct, cT]
+c1 = DTO.Cost(obj1, nx, nu, nw)
+ct = DTO.Cost(objt, 2 * nx + 5, nu, nw)
+cT = DTO.Cost(objT, 2 * nx + 5, 0, 0)
+obj = [c1, [ct for t = 2:T-1]..., cT]
 
 # ## constraints
-function stage1_eq(x, u, w) 
-    [
-   	RoboDojo.kinematics_foot(RoboDojo.hopper, x[1:RoboDojo.hopper.nq]) - RoboDojo.kinematics_foot(RoboDojo.hopper, x1[1:RoboDojo.hopper.nq]);
-	RoboDojo.kinematics_foot(RoboDojo.hopper, x[RoboDojo.hopper.nq .+ (1:RoboDojo.hopper.nq)]) - RoboDojo.kinematics_foot(RoboDojo.hopper, x1[RoboDojo.hopper.nq .+ (1:RoboDojo.hopper.nq)])
-    ]
-end
-
-function terminal_con_eq(x, u, w) 
-	θ = x[nx .+ (1:nx)]
-    [
-	x[1:RoboDojo.hopper.nq][collect([2, 3, 4])] - θ[1:RoboDojo.hopper.nq][collect([2, 3, 4])]
-	x[RoboDojo.hopper.nq .+ (1:RoboDojo.hopper.nq)][collect([2, 3, 4])] - θ[RoboDojo.hopper.nq .+ (1:RoboDojo.hopper.nq)][collect([2, 3, 4])]
-    ]
-end
-
-function terminal_con_ineq(x, u, w) 
-	x_travel = 0.5
-	θ = x[nx .+ (1:nx)]
-    [
-	x_travel - (x[1] - θ[1])
-	x_travel - (x[RoboDojo.hopper.nq + 1] - θ[RoboDojo.hopper.nq + 1])
-    ]
-end
-
-contact_ineq1 = StageConstraint((x, u, w) -> contact_constraints_inequality(h, x, u, w), nx, nu, nw, [1], :inequality)
-contact_ineqt = StageConstraint((x, u, w) -> contact_constraints_inequality(h, x, u, w), 2 * nx, nu, nw, [t for t = 2:T-1], :inequality)
-contact_eq1 = StageConstraint((x, u, w) -> contact_constraints_equality(h, x, u, w), nx, nu, nw, [1], :equality)
-contact_eqt = StageConstraint((x, u, w) -> contact_constraints_equality(h, x, u, w), 2 * nx, nu, nw, [t for t = 2:T-1], :equality)
 
 ql = [-Inf; 0; -Inf; 0.0]
 qu = [Inf; Inf; Inf; 1.0]
 xl1 = [q1; ql] 
 xu1 = [q1; qu]
-xlt = [ql; ql; -Inf * ones(nx)] 
-xut = [qu; qu; Inf * ones(nx)]
+xlt = [ql; ql; -Inf * ones(5); -Inf * ones(nx)] 
+xut = [qu; qu; Inf * ones(5); Inf * ones(nx)]
 ul = [-10.0; -10.0; zeros(nu - 2)]
 uu = [10.0; 10.0; Inf * ones(nu - 2)]
 
-bnd1 = DirectTrajectoryOptimization.Bound(nx, nu, [1], xl=xl1, xu=xu1, ul=ul, uu=uu)
-bndt = DirectTrajectoryOptimization.Bound(2 * nx, nu, [t for t = 2:T-1], xl=xlt, xu=xut, ul=ul, uu=uu)
-bndT = DirectTrajectoryOptimization.Bound(2 * nx, 0, [T], xl=xlt, xu=xut)
+bnd1 = DTO.Bound(nx, nu, xl=xl1, xu=xu1, ul=ul, uu=uu)
+bndt = DTO.Bound(2 * nx + 5, nu, xl=xlt, xu=xut, ul=ul, uu=uu)
+bndT = DTO.Bound(2 * nx + 5, 0, xl=xlt, xu=xut)
+bnds = [bnd1, [bndt for t = 2:T-1]..., bndT]
 
-con_eq1 = DirectTrajectoryOptimization.StageConstraint(stage1_eq, nx, nu, nw, [1], :equality)
-conT_eq = DirectTrajectoryOptimization.StageConstraint(terminal_con_eq, 2 * nx, nu, nw, [T], :equality)
-conT_ineq = DirectTrajectoryOptimization.StageConstraint(terminal_con_ineq, 2 * nx, nu, nw, [T], :inequality)
+function constraints_1(x, u, w) 
+    [
+     # equality (8)
+   	 RoboDojo.kinematics_foot(RoboDojo.hopper, x[1:RoboDojo.hopper.nq]) - RoboDojo.kinematics_foot(RoboDojo.hopper, x1[1:RoboDojo.hopper.nq]);
+	 RoboDojo.kinematics_foot(RoboDojo.hopper, x[RoboDojo.hopper.nq .+ (1:RoboDojo.hopper.nq)]) - RoboDojo.kinematics_foot(RoboDojo.hopper, x1[RoboDojo.hopper.nq .+ (1:RoboDojo.hopper.nq)]);
+     contact_constraints_equality(h, x, u, w); 
+     # inequality (12)
+     contact_constraints_inequality_1(h, x, u, w);
+    ]
+end
 
-cons = DirectTrajectoryOptimization.ConstraintSet([bnd1, bndt, bndT], [contact_ineq1, contact_ineqt, contact_eq1, contact_eqt, con_eq1, conT_eq, conT_ineq])
+function constraints_t(x, u, w) 
+    [
+     # equality (4)
+     contact_constraints_equality(h, x, u, w); 
+     # inequality (16)
+     contact_constraints_inequality_t(h, x, u, w);
+    ]
+end
+
+function constraints_T(x, u, w) 
+    x_travel = 0.5
+    θ = x[nx + 5 .+ (1:nx)]
+    [
+     # equality (6)
+	 x[1:RoboDojo.hopper.nq][collect([2, 3, 4])] - θ[1:RoboDojo.hopper.nq][collect([2, 3, 4])];
+	 x[RoboDojo.hopper.nq .+ (1:RoboDojo.hopper.nq)][collect([2, 3, 4])] - θ[RoboDojo.hopper.nq .+ (1:RoboDojo.hopper.nq)][collect([2, 3, 4])];
+     # inequality (10)
+     x_travel - (x[1] - θ[1])
+	 x_travel - (x[RoboDojo.hopper.nq + 1] - θ[RoboDojo.hopper.nq + 1])
+     contact_constraints_inequality_T(h, x, u, w);
+    ]
+end
+
+con1 = DTO.Constraint(constraints_1, nx, nu, nw, idx_ineq=collect(8 .+ (1:12))) 
+cont = DTO.Constraint(constraints_t, 2nx + 5, nu, nw, idx_ineq=collect(4 .+ (1:16))) 
+conT = DTO.Constraint(constraints_T, 2nx + 5, nu, nw, idx_ineq=collect(6 .+ (1:10))) 
+cons = [con1, [cont for t = 2:T-1]..., conT]
 
 # ## problem 
-trajopt = DirectTrajectoryOptimization.TrajectoryOptimizationProblem(obj, model, cons)
-s = DirectTrajectoryOptimization.Solver(trajopt, options=DirectTrajectoryOptimization.Options(
-    tol=1.0e-3,
-    constr_viol_tol=1.0e-3,
-))
+p = DTO.ProblemData(obj, dyn, cons, bnds, 
+    options=DTO.Options(
+        tol=1.0e-3,
+        constr_viol_tol=1.0e-3))
 
 # ## initialize
-x_interpolation = [x1, [[x1; x1] for t = 2:T]...]
+x_interpolation = [x1, [[x1; zeros(5); x1] for t = 2:T]...]
 u_guess = [[0.0; RoboDojo.hopper.gravity * RoboDojo.hopper.mass_body * 0.5 * h[1]; 1.0e-1 * ones(nu - 2)] for t = 1:T-1] # may need to run more than once to get good trajectory
-z0 = zeros(s.p.num_var)
-for (t, idx) in enumerate(s.p.trajopt.model.idx.x)
-    z0[idx] = x_interpolation[t]
-end
-for (t, idx) in enumerate(s.p.trajopt.model.idx.u)
-    z0[idx] = u_guess[t]
-end
-DirectTrajectoryOptimization.initialize!(s, z0)
+DTO.initialize_states!(p, x_interpolation)
+DTO.initialize_controls!(p, u_guess)
 
 # ## solve
-DirectTrajectoryOptimization.solve!(s)
+DTO.solve!(p)
 
 # ## benchmark 
 s.solver.options["print_level"] = 0
-function solve(s, z) 
-    DirectTrajectoryOptimization.initialize!(s, z) 
-    DirectTrajectoryOptimization.solve!(s)
+function solve(p, x, u) 
+    DTO.initialize_states!(p, x)
+    DTO.initialize_controls!(p, u) 
+    DTO.solve!(p)
 end
 
-@benchmark DirectTrajectoryOptimization.solve($s, $z0)
+@benchmark DTO.solve($p, $x, $u)
 
 # ## solution
-@show trajopt.x[1]
-@show trajopt.x[T]
-sum([u[nu] for u in trajopt.u[1:end-1]])
-trajopt.x[1] - trajopt.x[T][1:nx]
+x_sol, u_sol = DTO.get_trajectory(p)
+@show x_sol[1]
+@show x_sol[T]
+sum([u[nu] for u in u_sol[1:end-1]])
+x_sol[1] - x_sol[T][1:nx]
 
 # ## visualize 
 vis = Visualizer() 
 render(vis)
-q_sol = state_to_configuration([x[1:nx] for x in trajopt.x])
+q_sol = state_to_configuration([x[1:nx] for x in x_sol])
 RoboDojo.visualize!(vis, RoboDojo.hopper, q_sol, Δt=h)
-
-maximum([norm(contact_constraints_equality(h, trajopt.x[t], trajopt.u[t], zeros(0)), Inf) for t = 1:T-1])
-maximum([norm(max.(0.0, contact_constraints_inequality(h, trajopt.x[t], trajopt.u[t], zeros(0))), Inf) for t = 1:T-1])
-maximum([norm(contact_constraints_equality(h, trajopt.x[t], trajopt.u[t], zeros(0)), Inf) for t = 1:T-1])
-maximum([norm(hopper_dyn(mass_matrix, dynamics_bias, h, trajopt.x[t+1], trajopt.x[t], trajopt.u[t], zeros(0)), Inf) for t = 1:T-1])
-minimum([min.(0.0, u[2 .+ (1:nu-2)]) for u in trajopt.u[1:end-1]])
 
 # ## comparison 
 function obj1_compare(x, u, w)
@@ -335,6 +363,5 @@ function obj_compare(x, u, w)
 	return J 
 end
 
-obj_compare(x_sol, u_sol, w)
-obj_compare(trajopt.x, trajopt.u, w)
-@show norm(terminal_con(trajopt.x[T], zeros(0), zeros(0))[3:4], Inf)
+obj_compare(x_sol, u_sol, [zeros(0) for t = 1:T])
+@show norm(constraints_T(x_sol[T], zeros(0), zeros(0))[1:6], Inf)
