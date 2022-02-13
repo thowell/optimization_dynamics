@@ -47,7 +47,7 @@ function MuJoCoModel(path)
 end
 
 # dynamics methods
-function f!(y, model::MuJoCoModel, x, u) 
+function f_mujoco!(y, model::MuJoCoModel, x, u) 
     model.d.ctrl .= @views u[model.idx_u]
     model.d.qpos[model.idx_next] .= @views x[model.idx_pos] 
     model.d.qvel[model.idx_next] .= @views x[model.idx_vel] 
@@ -57,21 +57,21 @@ function f!(y, model::MuJoCoModel, x, u)
     return y
 end
 
-f(model::MuJoCoModel, x, u) = f!(model.x, model, x, u)
+f_mujoco(model::MuJoCoModel, x, u) = f_mujoco!(model.x, model, x, u)
 
-function fx!(dx, model::MuJoCoModel, x, u) 
-    FiniteDiff.finite_difference_jacobian!(dx, (a, b) -> f!(a, model, b, u), x, model.cache_x)
+function fx_mujoco!(dx, model::MuJoCoModel, x, u) 
+    FiniteDiff.finite_difference_jacobian!(dx, (a, b) -> f_mujoco!(a, model, b, u), x, model.cache_x)
     return dx 
 end
 
-fx(model::MuJoCoModel, x, u) = fx!(model.fx, model, x, u)
+fx_mujoco(model::MuJoCoModel, x, u) = fx_mujoco!(model.fx, model, x, u)
 
-function fu!(du, model::MuJoCoModel, x, u) 
-    FiniteDiff.finite_difference_jacobian!(du, (a, b) -> f!(a, model, x, b), u, model.cache_u)
+function fu_mujoco!(du, model::MuJoCoModel, x, u) 
+    FiniteDiff.finite_difference_jacobian!(du, (a, b) -> f_mujoco!(a, model, x, b), u, model.cache_u)
     return du
 end
 
-fu(model::MuJoCoModel, x, u) = fu!(model.fu, model, x, u)
+fu_mujoco(model::MuJoCoModel, x, u) = fu_mujoco!(model.fu, model, x, u)
 
 # x2 = zeros(acrobot.nx)
 # x1 = zeros(acrobot.nx)

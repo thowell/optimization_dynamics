@@ -28,9 +28,9 @@ nu = acrobot_mujoco.nu
 
 # ## model
 dyn = IterativeLQR.Dynamics(
-    (y, x, u, w) -> f!(y, acrobot_mujoco, x, u), 
-    (dx, x, u, w) -> fx!(dx, acrobot_mujoco, x, u), 
-    (du, x, u, w) -> fu!(du, acrobot_mujoco, x, u), 
+    (y, x, u, w) -> f_mujoco!(y, acrobot_mujoco, x, u), 
+    (dx, x, u, w) -> fx_mujoco!(dx, acrobot_mujoco, x, u), 
+    (du, x, u, w) -> fu_mujoco!(du, acrobot_mujoco, x, u), 
     nx, nx, nu) 
 
 model = [dyn for t = 1:T-1] 
@@ -55,8 +55,8 @@ function objT(x, u, w)
 	return J
 end
 
-ct = IterativeLQR.Cost(objt, acrobot_mujoco.nx, acrobot_mujoco.nu, 0)
-cT = IterativeLQR.Cost(objT, acrobot_mujoco.nx, 0, 0)
+ct = IterativeLQR.Cost(objt, acrobot_mujoco.nx, acrobot_mujoco.nu)
+cT = IterativeLQR.Cost(objT, acrobot_mujoco.nx, 0)
 obj = [[ct for t = 1:T-1]..., cT]
 
 # ## constraints
@@ -72,45 +72,37 @@ ū = [1.0e-3 * randn(acrobot_mujoco.nu) for t = 1:T-1]
 w = [zeros(0) for t = 1:T-1]
 x̄ = IterativeLQR.rollout(model, x1, ū)
 
-# ## problem
-prob = IterativeLQR.problem_data(model, obj, cons)
-IterativeLQR.initialize_controls!(prob, ū)
-IterativeLQR.initialize_states!(prob, x̄)
+# ## solver
+solver = IterativeLQR.solver(model, obj, cons,
+    opts=iLQR.Options(
+        linesearch = :armijo,
+        α_min=1.0e-5,
+        obj_tol=1.0e-5,
+        grad_tol=1.0e-5,
+        max_iter=50,
+        max_al_iter=10,
+        con_tol=0.001,
+        ρ_init=1.0, 
+        ρ_scale=10.0,
+        verbose=true))
+IterativeLQR.initialize_controls!(solver, ū)
+IterativeLQR.initialize_states!(solver, x̄)
 
 # ## solve
-IterativeLQR.reset!(prob.s_data)
-IterativeLQR.solve!(prob, 
-	linesearch = :armijo,
-    α_min=1.0e-5,
-    obj_tol=1.0e-5,
-    grad_tol=1.0e-5,
-    max_iter=50,
-    max_al_iter=10,
-    con_tol=0.001,
-    ρ_init=1.0, 
-    ρ_scale=10.0,
-	verbose=true)
+IterativeLQR.reset!(solver.s_data)
+IterativeLQR.solve!(solver)
 
-@show prob.s_data.iter[1]
-@show IterativeLQR.eval_obj(prob.m_data.obj.costs, prob.m_data.x, prob.m_data.u, prob.m_data.w)
-@show norm(goal(prob.m_data.x[T], zeros(0), zeros(0)), Inf)
-@show prob.s_data.obj[1] # augmented Lagrangian cost
+@show solver.s_data.iter[1]
+@show IterativeLQR.eval_obj(solver.m_data.obj.costs, solver.m_data.x, solver.m_data.u, solver.m_data.w)
+@show norm(goal(solver.m_data.x[T], zeros(0), zeros(0)), Inf)
+@show solver.s_data.obj[1] # augmented Lagrangian cost
 
 # ## benchmark
-@benchmark IterativeLQR.solve!($prob, x̄, ū,
-	linesearch = :armijo,
-    α_min=1.0e-5,
-    obj_tol=1.0e-5,
-    grad_tol=1.0e-5,
-    max_iter=50,
-    max_al_iter=10,
-    con_tol=0.001,
-    ρ_init=1.0, 
-    ρ_scale=10.0,
-	verbose=false) setup=(x̄=deepcopy(x̄), ū=deepcopy(ū))
+solver.options.verbose = true
+@benchmark IterativeLQR.solve!($solver, x̄, ū) setup=(x̄=deepcopy(x̄), ū=deepcopy(ū))
 
 # ## solution
-x_sol, u_sol = IterativeLQR.get_trajectory(prob)
+x_sol, u_sol = IterativeLQR.get_trajectory(solver)
 
 # ## MuJoCo visualizer
 states = Array(undef, statespace(sim), T-1)

@@ -1,6 +1,6 @@
 using OptimizationDynamics
-using IterativeLQR
-using Rotations
+const iLQR = OptimizationDynamics.IterativeLQR
+const Rotations = OptimizationDynamics.Rotations
 using LinearAlgebra
 using Random
 
@@ -24,16 +24,15 @@ info = RocketInfo(rocket, u_max, h,
 
 nx = rocket.nq
 nu = rocket.nu 
-nw = rocket.nw
 
 # ## iLQR model
 if MODE == :projection
-    ilqr_dyn = IterativeLQR.Dynamics((d, x, u, w) -> f_rocket_proj(d, info, x, u, w), 
+    ilqr_dyn = iLQR.Dynamics((d, x, u, w) -> f_rocket_proj(d, info, x, u, w), 
                         (dx, x, u, w) -> fx_rocket_proj(dx, info, x, u, w), 
                         (du, x, u, w) -> fu_rocket_proj(du, info, x, u, w), 
                         nx, nx, nu)  
 else
-    ilqr_dyn = IterativeLQR.Dynamics((d, x, u, w) -> f_rocket(d, info, x, u, w), 
+    ilqr_dyn = iLQR.Dynamics((d, x, u, w) -> f_rocket(d, info, x, u, w), 
                     (dx, x, u, w) -> fx_rocket(dx, info, x, u, w), 
                     (du, x, u, w) -> fu_rocket(du, info, x, u, w), 
                     nx, nx, nu)  
@@ -73,8 +72,8 @@ function objT(x, u, w)
 	return J
 end
 
-ct = IterativeLQR.Cost(objt, nx, nu, nw)
-cT = IterativeLQR.Cost(objT, nx, 0, 0)
+ct = iLQR.Cost(objt, nx, nu)
+cT = iLQR.Cost(objT, nx, 0)
 obj = [[ct for t = 1:T-1]..., cT]
 
 # ## constraints
@@ -105,58 +104,49 @@ function terminal_con(x, u, w)
     ]
 end
 
-cont = IterativeLQR.Constraint(stage_con, nx, nu, idx_ineq=collect(1:(1 + (MODE == :projection ? 0 : 2))))
-conT = IterativeLQR.Constraint(terminal_con, nx, 0, idx_ineq=collect(1:4))
+cont = iLQR.Constraint(stage_con, nx, nu, idx_ineq=collect(1:(1 + (MODE == :projection ? 0 : 2))))
+conT = iLQR.Constraint(terminal_con, nx, 0, idx_ineq=collect(1:4))
 cons = [[cont for t = 1:T-1]..., conT]
 
 # ## rollout
 Random.seed!(1)
 ū = [1.0e-3 * randn(nu) for t = 1:T-1]
-w = [zeros(nw) for t = 1:T-1]
-x̄ = IterativeLQR.rollout(model, x1, ū)
+x̄ = iLQR.rollout(model, x1, ū)
 visualize!(vis, rocket, x̄, Δt=h)
 
-# ## problem 
-prob = IterativeLQR.problem_data(model, obj, cons)
-IterativeLQR.initialize_controls!(prob, ū)
-IterativeLQR.initialize_states!(prob, x̄)
+# ## solver 
+solver = iLQR.solver(model, obj, cons, 
+    opts=iLQR.Options(
+        linesearch = :armijo,
+        α_min=1.0e-5,
+        obj_tol=1.0e-3,
+        grad_tol=1.0e-3,
+        max_iter=100,
+        max_al_iter=15,
+        con_tol=0.005,
+        ρ_init=1.0, 
+        ρ_scale=10.0,
+        verbose=true))
+iLQR.initialize_controls!(solver, ū)
+iLQR.initialize_states!(solver, x̄)
 
 # ## solve
-IterativeLQR.reset!(prob.s_data)
-IterativeLQR.solve!(prob, 
-    linesearch = :armijo,
-    α_min=1.0e-5,
-    obj_tol=1.0e-3,
-    grad_tol=1.0e-3,
-    max_iter=100,
-    max_al_iter=15,
-    con_tol=0.005,
-    ρ_init=1.0, 
-    ρ_scale=10.0,
-    verbose=true)
+iLQR.reset!(solver.s_data)
+iLQR.solve!(solver)
 
-@show IterativeLQR.eval_obj(prob.m_data.obj.costs, prob.m_data.x, prob.m_data.u, prob.m_data.w)
-@show prob.s_data.iter[1]
-@show norm(terminal_con(prob.m_data.x[T], zeros(0), zeros(0))[4 .+ (1:10)], Inf)
-@show prob.s_data.obj[1] # augmented Lagrangian cost
+@show iLQR.eval_obj(solver.m_data.obj.costs, solver.m_data.x, solver.m_data.u, solver.m_data.w)
+@show solver.s_data.iter[1]
+@show norm(terminal_con(solver.m_data.x[T], zeros(0), zeros(0))[4 .+ (1:10)], Inf)
+@show solver.s_data.obj[1] # augmented Lagrangian cost
 
 # ## solution
-x_sol, u_sol = IterativeLQR.get_trajectory(prob)
+x_sol, u_sol = iLQR.get_trajectory(solver)
 visualize!(vis, rocket, x_sol, Δt=h)
 
 # ## test thrust cone constraint
 all([norm(u[1:2]) <= u[3] for u in u_sol])
 
 # ## benchmark 
-@benchmark IterativeLQR.solve!($prob, x̄, ū,
-    linesearch = :armijo,
-    α_min=1.0e-5,
-    obj_tol=1.0e-5,
-    grad_tol=1.0e-5,
-    max_iter=100,
-    max_al_iter=10,
-    con_tol=0.001,
-    ρ_init=1.0, 
-    ρ_scale=10.0,
-    verbose=false) setup=(x̄=deepcopy(x̄), ū=deepcopy(ū))
+solver.options.verbose = false
+@benchmark iLQR.solve!($solver, x̄, ū) setup=(x̄=deepcopy(x̄), ū=deepcopy(ū))
 

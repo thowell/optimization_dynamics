@@ -23,7 +23,7 @@ export
     load
 
 export 
-    Visualizer, render, open, visualize!
+    Visualizer, render, open, visualize!  
 
 include("dynamics.jl")
 include("ls.jl")

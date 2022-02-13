@@ -1,6 +1,6 @@
 using OptimizationDynamics
-using IterativeLQR
-using RoboDojo
+const iLQR = OptimizationDynamics.IterativeLQR
+const RoboDojo = OptimizationDynamics.RoboDojo
 using LinearAlgebra
 using Random
 
@@ -162,12 +162,12 @@ function ftu(du, model::ImplicitDynamics, x, u, w)
 end
 
 # ## iLQR model
-ilqr_dyn1 = IterativeLQR.Dynamics((d, x, u, w) -> f1(d, im_dyn1, x, u, w), 
+ilqr_dyn1 = iLQR.Dynamics((d, x, u, w) -> f1(d, im_dyn1, x, u, w), 
 					(dx, x, u, w) -> f1x(dx, im_dyn1, x, u, w), 
 					(du, x, u, w) -> f1u(du, im_dyn1, x, u, w), 
 					4 * hopper.nq, 2 * hopper.nq, hopper.nu + 2 * hopper.nq)  
 
-ilqr_dynt = IterativeLQR.Dynamics((d, x, u, w) -> ft(d, im_dynt, x, u, w), 
+ilqr_dynt = iLQR.Dynamics((d, x, u, w) -> ft(d, im_dynt, x, u, w), 
 	(dx, x, u, w) -> ftx(dx, im_dynt, x, u, w), 
 	(du, x, u, w) -> ftu(du, im_dynt, x, u, w), 
 	4 * hopper.nq, 4 * hopper.nq, hopper.nu)  
@@ -187,17 +187,17 @@ x_ref = [q_ref; q_ref]
 
 # ## objective
 
-GATE = 1 
-## GATE = 2 
-## GATE = 3
+GAIT = 1 
+## GAIT = 2 
+## GAIT = 3
 
-if GATE == 1 
+if GAIT == 1 
 	r_cost = 1.0e-1 
 	q_cost = 1.0e-1
-elseif GATE == 2 
+elseif GAIT == 2 
 	r_cost = 1.0
 	q_cost = 1.0
-elseif GATE == 3 
+elseif GAIT == 3 
 	r_cost = 1.0e-3
 	q_cost = 1.0e-1
 end
@@ -222,9 +222,9 @@ function objT(x, u, w)
 	return J
 end
 
-c1 = IterativeLQR.Cost(obj1, 2 * hopper.nq, hopper.nu + 2 * hopper.nq, 0)
-ct = IterativeLQR.Cost(objt, 4 * hopper.nq, hopper.nu, 0)
-cT = IterativeLQR.Cost(objT, 4 * hopper.nq, 0, 0)
+c1 = iLQR.Cost(obj1, 2 * hopper.nq, hopper.nu + 2 * hopper.nq)
+ct = iLQR.Cost(objt, 4 * hopper.nq, hopper.nu)
+cT = iLQR.Cost(objT, 4 * hopper.nq, 0)
 obj = [c1, [ct for t = 2:T-1]..., cT]
 
 # ## constraints
@@ -261,58 +261,48 @@ function terminal_con(x, u, w)
     ]
 end
 
-con1 = IterativeLQR.Constraint(stage1_con, 2 * hopper.nq, hopper.nu + 2 * hopper.nq, idx_ineq=collect(1:4))
-cont = IterativeLQR.Constraint(staget_con, 4 * hopper.nq, hopper.nu, idx_ineq=collect(1:4))
-conT = IterativeLQR.Constraint(terminal_con, 4 * hopper.nq, 0, idx_ineq=collect(1:2))
+con1 = iLQR.Constraint(stage1_con, 2 * hopper.nq, hopper.nu + 2 * hopper.nq, idx_ineq=collect(1:4))
+cont = iLQR.Constraint(staget_con, 4 * hopper.nq, hopper.nu, idx_ineq=collect(1:4))
+conT = iLQR.Constraint(terminal_con, 4 * hopper.nq, 0, idx_ineq=collect(1:2))
 cons = [con1, [cont for t = 2:T-1]..., conT]
 
 # ## rollout
 ū_stand = [t == 1 ? [0.0; hopper.gravity * hopper.mass_body * 0.5 * h; x1] : [0.0; hopper.gravity * hopper.mass_body * 0.5 * h] for t = 1:T-1]
-w = [zeros(hopper.nw) for t = 1:T-1]
-x̄ = IterativeLQR.rollout(model, x1, ū_stand)
+x̄ = iLQR.rollout(model, x1, ū_stand)
 q̄ = state_to_configuration(x̄)
 RoboDojo.visualize!(vis, hopper, x̄, Δt=h)
 
-# ## problem
-prob = IterativeLQR.problem_data(model, obj, cons)
-IterativeLQR.initialize_controls!(prob, ū_stand)
-IterativeLQR.initialize_states!(prob, x̄)
+# ## solver
+solver = iLQR.solver(model, obj, cons, 
+	opts=iLQR.Options(linesearch = :armijo,
+		α_min=1.0e-5,
+		obj_tol=1.0e-3,
+		grad_tol=1.0e-3,
+		max_iter=10,
+		max_al_iter=15,
+		con_tol=0.001,
+		ρ_init=1.0, 
+		ρ_scale=10.0, 
+		verbose=false))
+iLQR.initialize_controls!(solver, ū_stand)
+iLQR.initialize_states!(solver, x̄)
 
 # ## solve
-IterativeLQR.reset!(prob.s_data)
-@time IterativeLQR.solve!(prob, 
-	linesearch = :armijo,
-	α_min=1.0e-5,
-	obj_tol=1.0e-3,
-	grad_tol=1.0e-3,
-	max_iter=10,
-	max_al_iter=15,
-	con_tol=0.001,
-	ρ_init=1.0, 
-	ρ_scale=10.0, 
-	verbose=false)
+iLQR.reset!(solver.s_data)
+@time iLQR.solve!(solver)
 
-@show IterativeLQR.eval_obj(prob.m_data.obj.costs, prob.m_data.x, prob.m_data.u, prob.m_data.w)
-@show prob.s_data.iter[1]
-@show norm(terminal_con(prob.m_data.x[T], zeros(0), zeros(0))[3:4], Inf)
-@show prob.s_data.obj[1] # augmented Lagrangian cost
+@show iLQR.eval_obj(solver.m_data.obj.costs, solver.m_data.x, solver.m_data.u, solver.m_data.w)
+@show solver.s_data.iter[1]
+@show norm(terminal_con(solver.m_data.x[T], zeros(0), zeros(0))[3:4], Inf)
+@show solver.s_data.obj[1] # augmented Lagrangian cost
     
 # ## solution
-x_sol, u_sol = IterativeLQR.get_trajectory(prob)
+x_sol, u_sol = iLQR.get_trajectory(solver)
 q_sol = state_to_configuration(x_sol)
 RoboDojo.visualize!(vis, hopper, q_sol, Δt=h)
 
 ## benchmark (NOTE: gate 3 seems to break @benchmark, just run @time instead...)
-@benchmark IterativeLQR.solve!($prob, $x̄, $ū_stand, 
-	linesearch = :armijo,
-	α_min=1.0e-5,
-	obj_tol=1.0e-3,
-	grad_tol=1.0e-3,
-	max_iter=10,
-	max_al_iter=15,
-	con_tol=0.001,
-	ρ_init=1.0, 
-	ρ_scale=10.0, 
-	verbose=false)
+solver.options.verbose = false
+@benchmark iLQR.solve!($solver, $x̄, $ū_stand)
 
 

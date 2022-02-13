@@ -168,7 +168,6 @@ h = 0.05
 # ## hopper 
 nx = 2 * RoboDojo.hopper.nq
 nu = RoboDojo.hopper.nu + 4 + 4 + 2 + 4 + 1
-nw = RoboDojo.hopper.nw
 
 # ## model
 mass_matrix, dynamics_bias = RoboDojo.codegen_dynamics(RoboDojo.hopper)
@@ -189,17 +188,17 @@ xT = [qT; qT]
 x_ref = [q_ref; q_ref]
 
 # ## gate 
-GATE = 1 
-# GATE = 2 
-# GATE = 3
+GAIT = 1 
+GAIT = 2 
+GAIT = 3
 
-if GATE == 1 
+if GAIT == 1 
 	r_cost = 1.0e-1 
 	q_cost = 1.0e-1
-elseif GATE == 2 
+elseif GAIT == 2 
 	r_cost = 1.0
 	q_cost = 1.0
-elseif GATE == 3 
+elseif GAIT == 3 
 	r_cost = 1.0e-3
 	q_cost = 1.0e-1
 end
@@ -227,9 +226,9 @@ function objT(x, u, w)
     return J
 end
 
-c1 = DTO.Cost(obj1, nx, nu, nw)
-ct = DTO.Cost(objt, 2 * nx + 5, nu, nw)
-cT = DTO.Cost(objT, 2 * nx + 5, 0, 0)
+c1 = DTO.Cost(obj1, nx, nu)
+ct = DTO.Cost(objt, 2 * nx + 5, nu)
+cT = DTO.Cost(objT, 2 * nx + 5, 0)
 obj = [c1, [ct for t = 2:T-1]..., cT]
 
 # ## constraints
@@ -282,16 +281,16 @@ function constraints_T(x, u, w)
     ]
 end
 
-con1 = DTO.Constraint(constraints_1, nx, nu, nw, idx_ineq=collect(8 .+ (1:12))) 
-cont = DTO.Constraint(constraints_t, 2nx + 5, nu, nw, idx_ineq=collect(4 .+ (1:16))) 
-conT = DTO.Constraint(constraints_T, 2nx + 5, nu, nw, idx_ineq=collect(6 .+ (1:10))) 
+con1 = DTO.Constraint(constraints_1, nx, nu, idx_ineq=collect(8 .+ (1:12))) 
+cont = DTO.Constraint(constraints_t, 2nx + 5, nu, idx_ineq=collect(4 .+ (1:16))) 
+conT = DTO.Constraint(constraints_T, 2nx + 5, nu, idx_ineq=collect(6 .+ (1:10))) 
 cons = [con1, [cont for t = 2:T-1]..., conT]
 
 # ## problem 
-p = DTO.ProblemData(obj, dyn, cons, bnds, 
+p = DTO.solver(dyn, obj, cons, bnds, 
     options=DTO.Options(
-        tol=1.0e-3,
-        constr_viol_tol=1.0e-3))
+        tol=1.0e-2,
+        constr_viol_tol=1.0e-2))
 
 # ## initialize
 x_interpolation = [x1, [[x1; zeros(5); x1] for t = 2:T]...]
@@ -300,17 +299,7 @@ DTO.initialize_states!(p, x_interpolation)
 DTO.initialize_controls!(p, u_guess)
 
 # ## solve
-DTO.solve!(p)
-
-# ## benchmark 
-s.solver.options["print_level"] = 0
-function solve(p, x, u) 
-    DTO.initialize_states!(p, x)
-    DTO.initialize_controls!(p, u) 
-    DTO.solve!(p)
-end
-
-@benchmark DTO.solve($p, $x, $u)
+@time DTO.solve!(p)
 
 # ## solution
 x_sol, u_sol = DTO.get_trajectory(p)
