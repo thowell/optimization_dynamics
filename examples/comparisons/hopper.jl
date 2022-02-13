@@ -174,7 +174,7 @@ mass_matrix, dynamics_bias = RoboDojo.codegen_dynamics(RoboDojo.hopper)
 d1 = DTO.Dynamics((y, x, u, w) -> hopper_dyn1(mass_matrix, dynamics_bias, [h], y, x, u, w), 2 * nx + 5, nx, nu)
 dt = DTO.Dynamics((y, x, u, w) -> hopper_dynt(mass_matrix, dynamics_bias, [h], y, x, u, w), 2 * nx + 5, 2 * nx + 5, nu)
 
-dyn = [d1, [dt for t = 2:T-1]...]
+dyn = [d1, [dt for t = 2:T-1]...];
 
 # ## initial conditions
 q1 = [0.0; 0.5 + RoboDojo.hopper.foot_radius; 0.0; 0.5]
@@ -229,7 +229,7 @@ end
 c1 = DTO.Cost(obj1, nx, nu)
 ct = DTO.Cost(objt, 2 * nx + 5, nu)
 cT = DTO.Cost(objT, 2 * nx + 5, 0)
-obj = [c1, [ct for t = 2:T-1]..., cT]
+obj = [c1, [ct for t = 2:T-1]..., cT];
 
 # ## constraints
 
@@ -245,7 +245,7 @@ uu = [10.0; 10.0; Inf * ones(nu - 2)]
 bnd1 = DTO.Bound(nx, nu, xl=xl1, xu=xu1, ul=ul, uu=uu)
 bndt = DTO.Bound(2 * nx + 5, nu, xl=xlt, xu=xut, ul=ul, uu=uu)
 bndT = DTO.Bound(2 * nx + 5, 0, xl=xlt, xu=xut)
-bnds = [bnd1, [bndt for t = 2:T-1]..., bndT]
+bnds = [bnd1, [bndt for t = 2:T-1]..., bndT];
 
 function constraints_1(x, u, w) 
     [
@@ -284,22 +284,22 @@ end
 con1 = DTO.Constraint(constraints_1, nx, nu, idx_ineq=collect(8 .+ (1:12))) 
 cont = DTO.Constraint(constraints_t, 2nx + 5, nu, idx_ineq=collect(4 .+ (1:16))) 
 conT = DTO.Constraint(constraints_T, 2nx + 5, nu, idx_ineq=collect(6 .+ (1:10))) 
-cons = [con1, [cont for t = 2:T-1]..., conT]
+cons = [con1, [cont for t = 2:T-1]..., conT];
 
 # ## problem 
 p = DTO.solver(dyn, obj, cons, bnds, 
     options=DTO.Options(
         tol=1.0e-2,
-        constr_viol_tol=1.0e-2))
+        constr_viol_tol=1.0e-2));
 
 # ## initialize
 x_interpolation = [x1, [[x1; zeros(5); x1] for t = 2:T]...]
 u_guess = [[0.0; RoboDojo.hopper.gravity * RoboDojo.hopper.mass_body * 0.5 * h[1]; 1.0e-1 * ones(nu - 2)] for t = 1:T-1] # may need to run more than once to get good trajectory
 DTO.initialize_states!(p, x_interpolation)
-DTO.initialize_controls!(p, u_guess)
+DTO.initialize_controls!(p, u_guess);
 
 # ## solve
-@time DTO.solve!(p)
+@time DTO.solve!(p);
 
 # ## solution
 x_sol, u_sol = DTO.get_trajectory(p)
@@ -312,7 +312,7 @@ x_sol[1] - x_sol[T][1:nx]
 vis = Visualizer() 
 render(vis)
 q_sol = state_to_configuration([x[1:nx] for x in x_sol])
-RoboDojo.visualize!(vis, RoboDojo.hopper, q_sol, Δt=h)
+RoboDojo.visualize!(vis, RoboDojo.hopper, q_sol, Δt=h);
 
 # ## comparison 
 function obj1_compare(x, u, w)

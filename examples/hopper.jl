@@ -6,7 +6,7 @@ using Random
 
 # ## visualize 
 vis = Visualizer() 
-render(vis)
+render(vis);
 
 # ## state-space model
 T = 21
@@ -172,7 +172,7 @@ ilqr_dynt = iLQR.Dynamics((d, x, u, w) -> ft(d, im_dynt, x, u, w),
 	(du, x, u, w) -> ftu(du, im_dynt, x, u, w), 
 	4 * hopper.nq, 4 * hopper.nq, hopper.nu)  
 
-model = [ilqr_dyn1, [ilqr_dynt for t = 2:T-1]...]
+model = [ilqr_dyn1, [ilqr_dynt for t = 2:T-1]...];
 
 # ## initial conditions
 q1 = [0.0; 0.5 + hopper.foot_radius; 0.0; 0.5]
@@ -225,7 +225,7 @@ end
 c1 = iLQR.Cost(obj1, 2 * hopper.nq, hopper.nu + 2 * hopper.nq)
 ct = iLQR.Cost(objt, 4 * hopper.nq, hopper.nu)
 cT = iLQR.Cost(objT, 4 * hopper.nq, 0)
-obj = [c1, [ct for t = 2:T-1]..., cT]
+obj = [c1, [ct for t = 2:T-1]..., cT];
 
 # ## constraints
 ul = [-10.0; -10.0]
@@ -264,13 +264,13 @@ end
 con1 = iLQR.Constraint(stage1_con, 2 * hopper.nq, hopper.nu + 2 * hopper.nq, idx_ineq=collect(1:4))
 cont = iLQR.Constraint(staget_con, 4 * hopper.nq, hopper.nu, idx_ineq=collect(1:4))
 conT = iLQR.Constraint(terminal_con, 4 * hopper.nq, 0, idx_ineq=collect(1:2))
-cons = [con1, [cont for t = 2:T-1]..., conT]
+cons = [con1, [cont for t = 2:T-1]..., conT];
 
 # ## rollout
 ū_stand = [t == 1 ? [0.0; hopper.gravity * hopper.mass_body * 0.5 * h; x1] : [0.0; hopper.gravity * hopper.mass_body * 0.5 * h] for t = 1:T-1]
 x̄ = iLQR.rollout(model, x1, ū_stand)
 q̄ = state_to_configuration(x̄)
-RoboDojo.visualize!(vis, hopper, x̄, Δt=h)
+RoboDojo.visualize!(vis, hopper, x̄, Δt=h);
 
 # ## solver
 solver = iLQR.solver(model, obj, cons, 
@@ -283,13 +283,13 @@ solver = iLQR.solver(model, obj, cons,
 		con_tol=0.001,
 		ρ_init=1.0, 
 		ρ_scale=10.0, 
-		verbose=false))
+		verbose=true))
 iLQR.initialize_controls!(solver, ū_stand)
-iLQR.initialize_states!(solver, x̄)
+iLQR.initialize_states!(solver, x̄);
 
 # ## solve
 iLQR.reset!(solver.s_data)
-@time iLQR.solve!(solver)
+@time iLQR.solve!(solver);
 
 @show iLQR.eval_obj(solver.m_data.obj.costs, solver.m_data.x, solver.m_data.u, solver.m_data.w)
 @show solver.s_data.iter[1]
@@ -299,10 +299,10 @@ iLQR.reset!(solver.s_data)
 # ## solution
 x_sol, u_sol = iLQR.get_trajectory(solver)
 q_sol = state_to_configuration(x_sol)
-RoboDojo.visualize!(vis, hopper, q_sol, Δt=h)
+RoboDojo.visualize!(vis, hopper, q_sol, Δt=h);
 
-## benchmark (NOTE: gate 3 seems to break @benchmark, just run @time instead...)
+# ## benchmark (NOTE: gate 3 seems to break @benchmark, just run @time instead...)
 solver.options.verbose = false
-@benchmark iLQR.solve!($solver, $x̄, $ū_stand)
+@benchmark iLQR.solve!($solver, $x̄, $ū_stand);
 
 

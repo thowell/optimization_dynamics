@@ -35,7 +35,7 @@ ilqr_dyn = iLQR.Dynamics((d, x, u, w) -> f(d, im_dyn, x, u, w),
 					(dx, x, u, w) -> fx(dx, im_dyn, x, u, w), 
 					(du, x, u, w) -> fu(du, im_dyn, x, u, w), 
 					nx, nx, nu)  
-model = [ilqr_dyn for t = 1:T-1]
+model = [ilqr_dyn for t = 1:T-1];
 
 # ## initial conditions
 q0 = [0.0; 0.0]
@@ -61,7 +61,7 @@ end
 
 ct = iLQR.Cost(objt, nx, nu)
 cT = iLQR.Cost(objT, nx, 0)
-obj = [[ct for t = 1:T-1]..., cT]
+obj = [[ct for t = 1:T-1]..., cT];
 
 # ## constraints
 function terminal_con(x, u, w) 
@@ -72,13 +72,13 @@ end
 
 cont = iLQR.Constraint()
 conT = iLQR.Constraint(terminal_con, nx, 0)
-cons = [[cont for t = 1:T-1]..., conT]
+cons = [[cont for t = 1:T-1]..., conT];
 
 # ## rollout
 ū = [(t == 1 ? -1.5 : 0.0) * ones(nu) for t = 1:T-1] # set value to -1.0 when friction coefficient = 0.25
 x̄ = iLQR.rollout(model, x1, ū)
 q̄ = state_to_configuration(x̄)
-visualize!(vis, cartpole_friction, q̄, Δt=h)
+visualize!(vis, cartpole_friction, q̄, Δt=h);
 
 # ## solver 
 solver = iLQR.solver(model, obj, cons, 
@@ -93,11 +93,11 @@ solver = iLQR.solver(model, obj, cons,
     ρ_scale=10.0, 
     verbose=true))
 iLQR.initialize_controls!(solver, ū)
-iLQR.initialize_states!(solver, x̄)
+iLQR.initialize_states!(solver, x̄);
 
 # ## solve
 iLQR.reset!(solver.s_data)
-iLQR.solve!(solver)
+iLQR.solve!(solver);
 
 @show iLQR.eval_obj(solver.m_data.obj.costs, solver.m_data.x, solver.m_data.u, solver.m_data.w)
 @show solver.s_data.iter[1]
@@ -107,8 +107,8 @@ iLQR.solve!(solver)
 # ## solution
 x_sol, u_sol = iLQR.get_trajectory(solver)
 q_sol = state_to_configuration(x_sol)
-visualize!(vis, cartpole_friction, q_sol, Δt=h)
+visualize!(vis, cartpole_friction, q_sol, Δt=h);
 
 # ## benchmark 
 solver.options.verbose = false
-@benchmark iLQR.solve!($solver, x̄, ū) setup=(x̄=deepcopy(x̄), ū=deepcopy(ū))
+@benchmark iLQR.solve!($solver, x̄, ū) setup=(x̄=deepcopy(x̄), ū=deepcopy(ū));

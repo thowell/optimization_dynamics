@@ -5,7 +5,7 @@ using Random
 
 # ## visualization 
 vis = Visualizer() 
-render(vis)
+render(vis);
 
 # ## mode
 MODE = :translate
@@ -30,7 +30,7 @@ ilqr_dyn = iLQR.Dynamics((d, x, u, w) -> f(d, im_dyn, x, u, w),
 	(du, x, u, w) -> GB ? fu_gb(du, im_dyn, x, u, w) : fu(du, im_dyn, x, u, w), 
 	nx, nx, nu) 
 
-model = [ilqr_dyn for t = 1:T-1]
+model = [ilqr_dyn for t = 1:T-1];
 
 # ## initial conditions and goal
 r_dim = 0.1
@@ -83,7 +83,7 @@ end
 
 ct = iLQR.Cost(objt, nx, nu)
 cT = iLQR.Cost(objT, nx, 0)
-obj = [[ct for t = 1:T-1]..., cT]
+obj = [[ct for t = 1:T-1]..., cT];
 
 # ## constraints
 ul = [-5.0; -5.0]
@@ -104,14 +104,14 @@ end
 
 cont = iLQR.Constraint(stage_con, nx, nu, idx_ineq=collect(1:(2 * nu)))
 conT = iLQR.Constraint(terminal_con, nx, 0)
-cons = [[cont for t = 1:T-1]..., conT]
+cons = [[cont for t = 1:T-1]..., conT];
 
 # ## rollout
 x1 = [q0; q1]
 ū = MODE == :translate ? [t < 5 ? [1.0; 0.0] : [0.0; 0.0] for t = 1:T-1] : [t < 5 ? [1.0; 0.0] : t < 10 ? [0.5; 0.0] : [0.0; 0.0] for t = 1:T-1]
 x̄ = iLQR.rollout(model, x1, ū)
 q̄ = state_to_configuration(x̄)
-visualize!(vis, planarpush, q̄, Δt=h)
+visualize!(vis, planarpush, q̄, Δt=h);
 
 # ## solver
 solver = iLQR.solver(model, obj, cons, 
@@ -127,11 +127,11 @@ solver = iLQR.solver(model, obj, cons,
 		ρ_scale=10.0, 
 		verbose=true))
 iLQR.initialize_controls!(solver, ū)
-iLQR.initialize_states!(solver, x̄)
+iLQR.initialize_states!(solver, x̄);
 
 # ## solve
 iLQR.reset!(solver.s_data)
-iLQR.solve!(solver)
+iLQR.solve!(solver);
 
 @show iLQR.eval_obj(solver.m_data.obj.costs, solver.m_data.x, solver.m_data.u, solver.m_data.w)
 @show solver.s_data.iter[1]
@@ -141,8 +141,8 @@ iLQR.solve!(solver)
 # ## solution
 x_sol, u_sol = iLQR.get_trajectory(solver)
 q_sol = state_to_configuration(x_sol)
-visualize!(vis, planarpush, q_sol, Δt=h)
+visualize!(vis, planarpush, q_sol, Δt=h);
 
 # ## benchmark 
 solver.options.verbose = false
-@benchmark iLQR.solve!($solver, x̄, ū) setup=(x̄=deepcopy(x̄), ū=deepcopy(ū))
+@benchmark iLQR.solve!($solver, x̄, ū) setup=(x̄=deepcopy(x̄), ū=deepcopy(ū));

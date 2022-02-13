@@ -6,7 +6,7 @@ using Random
 
 # ## visualization 
 vis = Visualizer() 
-render(vis)
+render(vis);
 
 # ## mode
 MODE = :projection 
@@ -38,7 +38,7 @@ else
                     nx, nx, nu)  
 end
 
-model = [ilqr_dyn for t = 1:T-1]
+model = [ilqr_dyn for t = 1:T-1];
 
 # ## initial conditions
 x1 = zeros(rocket.nq)
@@ -59,7 +59,7 @@ function objt(x, u, w)
 	J = 0.0 
 
 	J += 0.5 * transpose(x - xT) * Diagonal(h * [1.0e-1 * ones(3); 1.0e-5 * ones(3); 1.0e-1 * ones(3); 1000.0 * ones(3)]) * (x - xT) 
-	J += 0.5 * transpose(u) * Diagonal(h * [10000.0; 10000.0; 100.0]) * u
+	J += 0.5 * transpose(u) * Diagonal(h * [1000.0; 1000.0; 100.0]) * u
 
 	return J
 end
@@ -74,7 +74,7 @@ end
 
 ct = iLQR.Cost(objt, nx, nu)
 cT = iLQR.Cost(objT, nx, 0)
-obj = [[ct for t = 1:T-1]..., cT]
+obj = [[ct for t = 1:T-1]..., cT];
 
 # ## constraints
 x_con = [-0.5; 0.5]
@@ -87,6 +87,10 @@ function stage_con(x, u, w)
         ]
     else 
         [
+         -1.0 - u[1]; 
+         u[1] - 1.0; 
+         -1.0 - u[2]; 
+         u[2] - 1.0;
          0.0 - u[3]; # control limit (lower)
          u[3] - u_max; # control limit (upper)
          rocket.length - x[3];
@@ -104,15 +108,15 @@ function terminal_con(x, u, w)
     ]
 end
 
-cont = iLQR.Constraint(stage_con, nx, nu, idx_ineq=collect(1:(1 + (MODE == :projection ? 0 : 2))))
+cont = iLQR.Constraint(stage_con, nx, nu, idx_ineq=collect(1:(1 + (MODE == :projection ? 0 : 6))))
 conT = iLQR.Constraint(terminal_con, nx, 0, idx_ineq=collect(1:4))
-cons = [[cont for t = 1:T-1]..., conT]
+cons = [[cont for t = 1:T-1]..., conT];
 
 # ## rollout
 Random.seed!(1)
 ū = [1.0e-3 * randn(nu) for t = 1:T-1]
 x̄ = iLQR.rollout(model, x1, ū)
-visualize!(vis, rocket, x̄, Δt=h)
+visualize!(vis, rocket, x̄, Δt=h);
 
 # ## solver 
 solver = iLQR.solver(model, obj, cons, 
@@ -126,13 +130,13 @@ solver = iLQR.solver(model, obj, cons,
         con_tol=0.005,
         ρ_init=1.0, 
         ρ_scale=10.0,
-        verbose=true))
+        verbose=false))
 iLQR.initialize_controls!(solver, ū)
-iLQR.initialize_states!(solver, x̄)
+iLQR.initialize_states!(solver, x̄);
 
 # ## solve
 iLQR.reset!(solver.s_data)
-iLQR.solve!(solver)
+@time iLQR.solve!(solver);
 
 @show iLQR.eval_obj(solver.m_data.obj.costs, solver.m_data.x, solver.m_data.u, solver.m_data.w)
 @show solver.s_data.iter[1]
@@ -141,12 +145,12 @@ iLQR.solve!(solver)
 
 # ## solution
 x_sol, u_sol = iLQR.get_trajectory(solver)
-visualize!(vis, rocket, x_sol, Δt=h)
-
+visualize!(vis, rocket, x_sol, Δt=h);
+open(vis)
 # ## test thrust cone constraint
 all([norm(u[1:2]) <= u[3] for u in u_sol])
 
 # ## benchmark 
 solver.options.verbose = false
-@benchmark iLQR.solve!($solver, x̄, ū) setup=(x̄=deepcopy(x̄), ū=deepcopy(ū))
+@benchmark iLQR.solve!($solver, x̄, ū) setup=(x̄=deepcopy(x̄), ū=deepcopy(ū));
 

@@ -17,7 +17,7 @@ path = joinpath(@__DIR__, "acrobot_limits.xml")
 
 include("mujoco_model.jl")
 acrobot_mujoco = MuJoCoModel(path)
-sim = MJSim(acrobot_mujoco.m, acrobot_mujoco.d)
+sim = MJSim(acrobot_mujoco.m, acrobot_mujoco.d);
 
 # ## horizon 
 T = 101
@@ -33,7 +33,7 @@ dyn = IterativeLQR.Dynamics(
     (du, x, u, w) -> fu_mujoco!(du, acrobot_mujoco, x, u), 
     nx, nx, nu) 
 
-model = [dyn for t = 1:T-1] 
+model = [dyn for t = 1:T-1];
 
 # ## initial conditions
 x1 = [π; 0.0; 0.0; 0.0]
@@ -57,20 +57,20 @@ end
 
 ct = IterativeLQR.Cost(objt, acrobot_mujoco.nx, acrobot_mujoco.nu)
 cT = IterativeLQR.Cost(objT, acrobot_mujoco.nx, 0)
-obj = [[ct for t = 1:T-1]..., cT]
+obj = [[ct for t = 1:T-1]..., cT];
 
 # ## constraints
 goal(x, u, w) = x - xT
 
 cont = IterativeLQR.Constraint()
 conT = IterativeLQR.Constraint(goal, nx, 0)
-cons = [[cont for t = 1:T-1]..., conT] 
+cons = [[cont for t = 1:T-1]..., conT];
 
 # # rollout
 Random.seed!(1)
 ū = [1.0e-3 * randn(acrobot_mujoco.nu) for t = 1:T-1]
 w = [zeros(0) for t = 1:T-1]
-x̄ = IterativeLQR.rollout(model, x1, ū)
+x̄ = IterativeLQR.rollout(model, x1, ū);
 
 # ## solver
 solver = IterativeLQR.solver(model, obj, cons,
@@ -86,11 +86,11 @@ solver = IterativeLQR.solver(model, obj, cons,
         ρ_scale=10.0,
         verbose=true))
 IterativeLQR.initialize_controls!(solver, ū)
-IterativeLQR.initialize_states!(solver, x̄)
+IterativeLQR.initialize_states!(solver, x̄);
 
 # ## solve
 IterativeLQR.reset!(solver.s_data)
-IterativeLQR.solve!(solver)
+IterativeLQR.solve!(solver);
 
 @show solver.s_data.iter[1]
 @show IterativeLQR.eval_obj(solver.m_data.obj.costs, solver.m_data.x, solver.m_data.u, solver.m_data.w)
@@ -99,10 +99,10 @@ IterativeLQR.solve!(solver)
 
 # ## benchmark
 solver.options.verbose = true
-@benchmark IterativeLQR.solve!($solver, x̄, ū) setup=(x̄=deepcopy(x̄), ū=deepcopy(ū))
+@benchmark IterativeLQR.solve!($solver, x̄, ū) setup=(x̄=deepcopy(x̄), ū=deepcopy(ū));
 
 # ## solution
-x_sol, u_sol = IterativeLQR.get_trajectory(solver)
+x_sol, u_sol = IterativeLQR.get_trajectory(solver);
 
 # ## MuJoCo visualizer
 states = Array(undef, statespace(sim), T-1)
@@ -113,5 +113,5 @@ for t = 1:T-1
     states[:, t] .= getstate(sim)
 end
 
-visualize(sim, trajectories=[states]) # ctrl + LEFT (access trajectory mode)
+visualize(sim, trajectories=[states]); # ctrl + LEFT (access trajectory mode)
 
