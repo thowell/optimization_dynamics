@@ -9,7 +9,7 @@ pkg> add https://github.com/thowell/optimization_dynamics
 ```
 This will install and build the package. 
 
-[Notebooks](examples/README.md) are generated upon installation and can be run for the following examples:
+[Notebooks](examples) are generated upon installation and can be run for the following examples:
 
 ## planar push
 <img src="animations/planar_push_rotate.gif" alt="drawing" width="400"/> 
