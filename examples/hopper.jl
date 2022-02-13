@@ -283,7 +283,7 @@ solver = iLQR.solver(model, obj, cons,
 		con_tol=0.001,
 		ρ_init=1.0, 
 		ρ_scale=10.0, 
-		verbose=true))
+		verbose=false))
 iLQR.initialize_controls!(solver, ū_stand)
 iLQR.initialize_states!(solver, x̄);
 

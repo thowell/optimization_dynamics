@@ -84,13 +84,13 @@ solver = IterativeLQR.solver(model, obj, cons,
         con_tol=0.001,
         ρ_init=1.0, 
         ρ_scale=10.0,
-        verbose=true))
+        verbose=false))
 IterativeLQR.initialize_controls!(solver, ū)
 IterativeLQR.initialize_states!(solver, x̄);
 
 # ## solve
 IterativeLQR.reset!(solver.s_data)
-IterativeLQR.solve!(solver);
+@time IterativeLQR.solve!(solver);
 
 @show solver.s_data.iter[1]
 @show IterativeLQR.eval_obj(solver.m_data.obj.costs, solver.m_data.x, solver.m_data.u, solver.m_data.w)

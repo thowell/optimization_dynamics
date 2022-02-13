@@ -104,13 +104,13 @@ solver = iLQR.solver(model, obj, cons,
 		con_tol=0.001,
 		ρ_init=1.0, 
 		ρ_scale=10.0,
-		verbose=true))
+		verbose=false))
 iLQR.initialize_controls!(solver, ū)
 iLQR.initialize_states!(solver, x̄);
 
 # ## solve
 iLQR.reset!(solver.s_data)
-iLQR.solve!(solver);
+@time iLQR.solve!(solver);
 
 @show solver.s_data.iter[1]
 @show iLQR.eval_obj(solver.m_data.obj.costs, solver.m_data.x, solver.m_data.u, solver.m_data.w)

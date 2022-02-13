@@ -290,7 +290,8 @@ cons = [con1, [cont for t = 2:T-1]..., conT];
 p = DTO.solver(dyn, obj, cons, bnds, 
     options=DTO.Options(
         tol=1.0e-2,
-        constr_viol_tol=1.0e-2));
+        constr_viol_tol=1.0e-2,
+        print_level=0))
 
 # ## initialize
 x_interpolation = [x1, [[x1; zeros(5); x1] for t = 2:T]...]
