@@ -7,7 +7,13 @@ From the Julia REPL, type `]` to enter the Pkg REPL mode and run:
 ```julia
 pkg> add https://github.com/thowell/optimization_dynamics
 ```
-This will install and build the package. 
+This will install the package.
+
+Run 
+```julia 
+(OptimizationDynamics) pkg> build
+```
+to build the package.
 
 [Notebooks](examples) are generated upon installation and can be run for the following examples:
 
