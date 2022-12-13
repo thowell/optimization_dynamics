@@ -37,9 +37,9 @@ function visualize!(vis, p::Rocket, q;
 			else
 				setvisible!(vis["rocket"]["body"], true)
 			end
-	        settransform!(vis["rocket"],
+			settransform!(vis["rocket"],
 	              compose(Translation(q[t][1:3]),
-	                    LinearMap(MRP(q[t][4:6]...) * RotX(0.0))))
+	                    LinearMap(MRP(q[t][4:6]...))))
 	    end
 	end
 

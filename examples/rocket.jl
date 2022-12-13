@@ -6,7 +6,7 @@ using Random
 
 # ## visualization 
 vis = Visualizer() 
-render(vis);
+render(vis)
 
 # ## mode
 MODE = :projection 
@@ -116,7 +116,7 @@ cons = [[cont for t = 1:T-1]..., conT];
 Random.seed!(1)
 ū = [1.0e-3 * randn(nu) for t = 1:T-1]
 x̄ = iLQR.rollout(model, x1, ū)
-visualize!(vis, rocket, x̄, Δt=h);
+visualize!(vis, rocket, x̄, Δt=h)
 
 # ## solver 
 solver = iLQR.solver(model, obj, cons, 
@@ -145,7 +145,7 @@ iLQR.reset!(solver.s_data)
 
 # ## solution
 x_sol, u_sol = iLQR.get_trajectory(solver)
-visualize!(vis, rocket, x_sol, Δt=h);
+visualize!(vis, rocket, x_sol, Δt=h)
 open(vis)
 # ## test thrust cone constraint
 all([norm(u[1:2]) <= u[3] for u in u_sol])
